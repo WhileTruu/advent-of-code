@@ -16,6 +16,7 @@ main =
 
     outputPart1 =
         Num.toStr (getAnswer input)
+    outputExample = Num.toStr (getAnswer exampleInput)
 
     terminalCmds = inputToTerminalCmds exampleInput
 
@@ -23,20 +24,66 @@ main =
     terminalCmdsStr =
         List.map terminalCmds terminalCmdToString |> Str.joinWith "\n"
 
-    Stdout.line "\(outputPart1) \(terminalCmdsStr)"
+    Stdout.line "out: \(outputPart1)\noutExample: \(outputExample)\n\(terminalCmdsStr)"
 
 getAnswer : Str -> Nat
-getAnswer = \str -> 0
+getAnswer = \str ->
+    str
+    |> inputToTerminalCmds
+    |> terminalCmdsToDirNameAndSizeDict
+    |> Dict.toList
+    |> List.map \T _ i -> if i > 100000 then 0 else i
+    |> List.sum
 
-FileOrDir : [File Nat, Dir Str (Dict Str FileOrDir)]
+FileOrDir : [
+    File Nat,
+    Dir (Dict Str FileOrDir),
+]
 
-inputToTree : Str -> Dict Str (List FileOrDir)
+terminalCmdsToDirNameAndSizeDict : List TerminalCmd -> Dict Str Nat
+terminalCmdsToDirNameAndSizeDict = \terminalCmds ->
+    terminalCmds
+    |> List.walk (T Dict.empty []) \T dirsAndSizes path, cmd ->
+        when cmd is
+            TerminalCmdIn dirname -> T dirsAndSizes (List.append path dirname)
+            TerminalCmdOut -> T dirsAndSizes (List.dropLast path)
+            TerminalCmdRoot -> T dirsAndSizes ["/"]
+            TerminalCmdLs fileOrDirnameList ->
+                dirFilesSize =
+                    fileOrDirnameList
+                    |> List.map \a ->
+                        when a is
+                            File _ s -> s
+                            _ -> 0
+                    |> List.sum
 
+                newDict =
+                    path
+                    |> List.walk [] \state, a ->
+                        when state is
+                            [.., last] -> List.append state (Str.joinWith [a, last] "/")
+                            _ -> [a]
+                    |> List.walk dirsAndSizes \state, seg ->
+                        Dict.update state seg \possibleValue ->
+                               when possibleValue is
+                                    Missing -> Present dirFilesSize
+                                    Present value -> Present (value + dirFilesSize)
+
+                T newDict path
+    |> \T dict _ -> dict
+
+
+# Terminal command parsing
 TerminalCmd : [
     TerminalCmdIn Str,
     TerminalCmdOut,
     TerminalCmdRoot,
-    TerminalCmdLs (List FileOrDirName),
+    TerminalCmdLs (List FileOrDirname),
+]
+
+FileOrDirname : [
+    File Str Nat,
+    Dir Str,
 ]
 
 inputToTerminalCmds : Str -> List TerminalCmd
@@ -53,6 +100,8 @@ inputToTerminalCmds = \input ->
             |> Str.split "\n"
             |> List.keepOks parseFileOrDirName
             |> \a -> List.append state (TerminalCmdLs a)
+        else if line == "cd .." then
+            List.append state TerminalCmdOut
         else if Str.startsWith line "cd " then
             Str.replaceFirst line "cd " ""
             |> Result.withDefault line
@@ -76,9 +125,7 @@ terminalCmdToString = \cmd ->
                         "\n"
                 )
 
-FileOrDirName : [File Str Nat, Dir Str]
-
-fileOrDirNameToStr : FileOrDirName -> Str
+fileOrDirNameToStr : FileOrDirname -> Str
 fileOrDirNameToStr = \a ->
     when a is
         File name size ->
@@ -89,7 +136,7 @@ fileOrDirNameToStr = \a ->
         Dir name ->
             Str.concat "dir " name
 
-parseFileOrDirName : Str -> Result FileOrDirName {}
+parseFileOrDirName : Str -> Result FileOrDirname {}
 parseFileOrDirName = \str ->
     if Str.startsWith str "dir " then
         Str.replaceFirst str "dir " ""
@@ -108,7 +155,7 @@ parseFileOrDirName = \str ->
 
                 _ ->
                     Err {}
-
+# Tests
 exampleInput =
     """
     $ cd /
