@@ -14,17 +14,23 @@ main =
         |> Task.onFail \_ -> crash "Could not read file."
         |> Task.await
 
-    outputPart1 =
-        Num.toStr (getAnswer input)
+    outputPart1 = Num.toStr (getAnswer input)
     outputExample = Num.toStr (getAnswer exampleInput)
-
+    outputPart2 = Num.toStr (getAnswerPart2 input)
     terminalCmds = inputToTerminalCmds exampleInput
 
     terminalCmdsStr : Str
     terminalCmdsStr =
         List.map terminalCmds terminalCmdToString |> Str.joinWith "\n"
 
-    Stdout.line "out: \(outputPart1)\noutExample: \(outputExample)\n\(terminalCmdsStr)"
+    Stdout.line
+        """
+        out1: \(outputPart1)
+        out2: \(outputPart2)
+        outExample: \(outputExample)
+
+        \(terminalCmdsStr)
+        """
 
 getAnswer : Str -> Nat
 getAnswer = \str ->
@@ -34,6 +40,24 @@ getAnswer = \str ->
     |> Dict.toList
     |> List.map \T _ i -> if i > 100000 then 0 else i
     |> List.sum
+
+getAnswerPart2 : Str -> Nat
+getAnswerPart2 = \str ->
+    dirsAndSizes = terminalCmdsToDirNameAndSizeDict (inputToTerminalCmds str)
+
+    totalSize = Dict.get dirsAndSizes "/" |> Result.withDefault 0
+
+    minNeededSize = totalSize + 30000000 - 70000000
+
+    dirsLargeEnough = dirsAndSizes |> Dict.toList |> List.keepIf \T _ s -> s > minNeededSize
+
+    dirToDelete =
+        dirsLargeEnough
+        |> List.map \T _ s -> s
+        |> List.min
+        |> Result.withDefault 0
+
+    dirToDelete
 
 FileOrDir : [
     File Nat,
@@ -65,13 +89,12 @@ terminalCmdsToDirNameAndSizeDict = \terminalCmds ->
                             _ -> [a]
                     |> List.walk dirsAndSizes \state, seg ->
                         Dict.update state seg \possibleValue ->
-                               when possibleValue is
-                                    Missing -> Present dirFilesSize
-                                    Present value -> Present (value + dirFilesSize)
+                            when possibleValue is
+                                Missing -> Present dirFilesSize
+                                Present value -> Present (value + dirFilesSize)
 
                 T newDict path
     |> \T dict _ -> dict
-
 
 # Terminal command parsing
 TerminalCmd : [
@@ -184,3 +207,4 @@ exampleInput =
     """
 
 expect getAnswer exampleInput == 95437
+expect getAnswerPart2 exampleInput == 24933642
