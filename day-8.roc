@@ -14,25 +14,31 @@ main =
         |> Task.onFail \_ -> crash "Could not read file."
         |> Task.await
 
-    exampleNumTreesVisibleOutsideGrid : Nat
-    exampleNumTreesVisibleOutsideGrid =
-        parseGrid exampleInput |> findNumTreesVisibleFromOutsideGrid
-
     exampleNumTreesVisibleOutsideGridStr : Str
     exampleNumTreesVisibleOutsideGridStr =
-        Num.toStr exampleNumTreesVisibleOutsideGrid
+        parseGrid exampleInput |> findNumTreesVisibleFromOutsideGrid |> Num.toStr
 
     numTreesVisibleOutsideGridStr : Str
     numTreesVisibleOutsideGridStr =
         parseGrid input |> findNumTreesVisibleFromOutsideGrid |> Num.toStr
 
+    exampleHighestScenicScoreStr : Str
+    exampleHighestScenicScoreStr =
+        parseGrid exampleInput |> findHighestScenicScore |> Num.toStr
+
+    highestScenicScoreStr : Str
+    highestScenicScoreStr =
+        parseGrid input |> findHighestScenicScore |> Num.toStr
+
     Stdout.line
         """
         trees visible from outside the grid: \(numTreesVisibleOutsideGridStr)
         example trees visible from outside the grid: \(exampleNumTreesVisibleOutsideGridStr)
+
+        highest scenic score possible: \(highestScenicScoreStr)
+        example highest scenic score possible: \(exampleHighestScenicScoreStr)
         """
 
-# 2290 too high, 1611 too low
 parseGrid : Str -> List (List U8)
 parseGrid = \input ->
     input
@@ -43,18 +49,11 @@ parseGrid = \input ->
         |> List.map \a ->
             Str.toU8 a |> Result.withDefault 0
 
-gridToStr : List (List U8) -> Str
-gridToStr = \grid ->
-    grid
-    |> List.map (\gridLine -> List.map gridLine Num.toStr)
-    |> List.map (\a -> Str.joinWith a "")
-    |> Str.joinWith "\n"
-
 findNumTreesVisibleFromOutsideGrid : List (List U8) -> Nat
 findNumTreesVisibleFromOutsideGrid = \grid ->
     boolGrid =
         List.mapWithIndex grid \line, vIndex ->
-            List.mapWithIndex line \tree, hIndex ->
+            List.mapWithIndex line \_, hIndex ->
                 isTreeVisible vIndex hIndex grid
 
     List.walk boolGrid 0 \state, list ->
@@ -80,6 +79,46 @@ isTreeVisibleInLine = \index, line ->
     || List.all before \a -> a < tree
     || List.all after \a -> a < tree
 
+findHighestScenicScore : List (List U8) -> Nat
+findHighestScenicScore = \grid ->
+    scoreGrid =
+        List.mapWithIndex grid \line, vIndex ->
+            List.mapWithIndex line \_, hIndex ->
+                findHighestScenicScoreForTree vIndex hIndex grid
+
+    List.walk scoreGrid 0 \state, list ->
+        List.walk list state \state2, score ->
+            List.max [state, state2, score]
+            |> Result.withDefault score
+
+findHighestScenicScoreForTree : Nat, Nat, List (List U8) -> Nat
+findHighestScenicScoreForTree = \vIndex, hIndex, grid ->
+    vLine = List.map grid \line -> List.get line hIndex |> Result.withDefault 0
+    hLine = List.get grid vIndex |> Result.withDefault []
+
+    getScenicScoreForLine vIndex vLine
+    * getScenicScoreForLine hIndex hLine
+
+getScenicScoreForLine : Nat, List U8 -> Nat
+getScenicScoreForLine = \index, line ->
+    { before, others } = List.split line index
+    after = List.dropFirst others
+    tree = List.first others |> Result.withDefault 0
+
+    a = List.walkUntil (List.reverse before) 0 \state, visibleTree ->
+        if visibleTree >= tree then
+            Break (state + 1)
+        else
+            Continue (state + 1)
+
+    b = List.walkUntil after 0 \state, visibleTree ->
+        if visibleTree >= tree then
+            Break (state + 1)
+        else
+            Continue (state + 1)
+
+    a * b
+
 # Tests
 exampleInput =
     """
@@ -91,3 +130,4 @@ exampleInput =
     """
 
 expect findNumTreesVisibleFromOutsideGrid (parseGrid exampleInput) == 21
+expect findHighestScenicScore (parseGrid exampleInput) == 8
