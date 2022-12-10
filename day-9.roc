@@ -14,14 +14,16 @@ main =
         |> Task.onFail \_ -> crash "Could not read file."
         |> Task.await
 
-    outputPart1 = findPositionsTailOfRopeVisits input
+    outputPart1 = findPositionsTailOfRopeVisits input 1
+    exampleOutputPart2 = findPositionsTailOfRopeVisits exampleInput2 9 |> Set.len |> Num.toStr
 
     outputPart1Str = outputPart1 |> Set.len |> Num.toStr
     locsStr = outputPart1 |> Set.toList |> List.map locToStr |> Str.joinWith ", "
 
     Stdout.line
         """
-        \(outputPart1Str)
+        output part 1: \(outputPart1Str)
+        example output part 2: \(exampleOutputPart2)
         """
 
 Motion : [Up, Right, Down, Left]
@@ -64,42 +66,51 @@ doMotionForLoc = \loc, motion ->
         Down -> { loc & v: loc.v - 1 }
         Left -> { loc & h: loc.h - 1 }
 
-doMotion : Loc, Loc, Motion -> { head : Loc, tail : Loc }
-doMotion = \head, tail, motion ->
+doMotion : Loc, List Loc, Motion -> { head : Loc, tails : List Loc }
+doMotion = \head, tails, motion ->
     newHead = doMotionForLoc head motion
 
-    newTail = moveTail { head: newHead, tail } motion
+    newTails =
+        tails
+        |> List.walk (T newHead []) \T a list, tail ->
+            x = moveTail { head: a, tail } motion
 
-    { head: newHead, tail: newTail }
+            T x (List.append list x)
+        |> \T _ a -> a
 
-moveTail : { head: Loc, tail: Loc }, Motion -> Loc
+    { head: newHead, tails: newTails }
+
+moveTail : { head : Loc, tail : Loc }, Motion -> Loc
 moveTail = \{ head, tail }, motion ->
     if Num.abs (tail.v - head.v) == 2 then
-        if tail.h != head.h then
-            a = doMotionForLoc tail motion
+        a = doMotionForLoc tail motion
 
-            { a & h: head.h }
-        else
-            doMotionForLoc tail motion
+        { a & h: head.h }
+
     else if Num.abs (tail.h - head.h) == 2 then
-        if tail.v != head.v then
-            a = doMotionForLoc tail motion
+        a = doMotionForLoc tail motion
 
-            { a & v: head.v }
-        else
-            doMotionForLoc tail motion
+        { a & v: head.v }
+
     else
         tail
 
-findPositionsTailOfRopeVisits : Str -> Set Loc
-findPositionsTailOfRopeVisits = \input ->
+findPositionsTailOfRopeVisits : Str, Nat -> Set Loc
+findPositionsTailOfRopeVisits = \input, numTails ->
     motions = parseMotions input
+    startHead = { v: 0, h: 0 }
+    startTails = List.repeat { v: 0, h: 0 } numTails
 
     motions
-    |> List.walk (T { v: 0, h: 0 } { v: 0, h: 0 } Set.empty) \T locH locT uniqueLocs, motion ->
-        { head, tail } = doMotion locH locT motion
+    |> List.walk (T startHead startTails Set.empty) \T head tails uniqueLocs, motion ->
+        new = doMotion head tails motion
 
-        T head tail (Set.insert uniqueLocs tail)
+        newUniqueLocs =
+            List.last new.tails
+            |> Result.map \a -> Set.insert uniqueLocs a
+            |> Result.withDefault uniqueLocs
+
+        T new.head new.tails newUniqueLocs
     |> \T _ _ list -> list
 
 # Tests
@@ -115,4 +126,18 @@ exampleInput =
     R 2
     """
 
-expect Set.len (findPositionsTailOfRopeVisits exampleInput) == 13
+exampleInput2 =
+    """
+    R 5
+    U 8
+    L 8
+    D 3
+    R 17
+    D 10
+    L 25
+    U 20
+    """
+
+expect Set.len (findPositionsTailOfRopeVisits exampleInput 1) == 13
+expect Set.len (findPositionsTailOfRopeVisits exampleInput 9) == 1
+expect Set.len (findPositionsTailOfRopeVisits exampleInput2 9) == 36
