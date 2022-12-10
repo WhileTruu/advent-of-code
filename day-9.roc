@@ -20,10 +20,13 @@ main =
     outputPart1Str = outputPart1 |> Set.len |> Num.toStr
     locsStr = outputPart1 |> Set.toList |> List.map locToStr |> Str.joinWith ", "
 
+    outputPart2Str = findPositionsTailOfRopeVisits input 9 |> Set.len |> Num.toStr
+
     Stdout.line
         """
         output part 1: \(outputPart1Str)
         example output part 2: \(exampleOutputPart2)
+        output part 2: \(outputPart2Str)
         """
 
 Motion : [Up, Right, Down, Left]
@@ -73,25 +76,26 @@ doMotion = \head, tails, motion ->
     newTails =
         tails
         |> List.walk (T newHead []) \T a list, tail ->
-            x = moveTail { head: a, tail } motion
+            x = moveTail { head: a, tail }
 
             T x (List.append list x)
         |> \T _ a -> a
 
     { head: newHead, tails: newTails }
 
-moveTail : { head : Loc, tail : Loc }, Motion -> Loc
-moveTail = \{ head, tail }, motion ->
-    if Num.abs (tail.v - head.v) == 2 then
-        a = doMotionForLoc tail motion
+moveTail : { head : Loc, tail : Loc } -> Loc
+moveTail = \{ head, tail } ->
+    vDiff = head.v - tail.v
+    hDiff = head.h - tail.h
 
-        { a & h: head.h }
-
-    else if Num.abs (tail.h - head.h) == 2 then
-        a = doMotionForLoc tail motion
-
-        { a & v: head.v }
-
+    if vDiff == -2 then
+        { v: tail.v - 1, h: head.h }
+    else if vDiff == 2 then
+         { v: tail.v + 1, h: head.h }
+    else if hDiff == -2 then
+        { v: head.v, h: tail.h - 1 }
+    else if hDiff == 2 then
+        { v: head.v, h: tail.h + 1 }
     else
         tail
 
@@ -111,7 +115,7 @@ findPositionsTailOfRopeVisits = \input, numTails ->
             |> Result.withDefault uniqueLocs
 
         T new.head new.tails newUniqueLocs
-    |> \T _ _ list -> list
+    |> \T _ _ a -> a
 
 # Tests
 exampleInput =
