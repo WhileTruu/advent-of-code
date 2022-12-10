@@ -14,16 +14,14 @@ main =
         |> Task.onFail \_ -> crash "Could not read file."
         |> Task.await
 
-    outputPart1 = findPositionsTailOfRopeVisits exampleInput
+    outputPart1 = findPositionsTailOfRopeVisits input
 
-    outputPart1Str = outputPart1 |> Set.fromList |> Set.toList |> List.len |> Num.toStr
-    locsStr = outputPart1 |> List.map locToStr |> Str.joinWith ", "
+    outputPart1Str = outputPart1 |> Set.len |> Num.toStr
+    locsStr = outputPart1 |> Set.toList |> List.map locToStr |> Str.joinWith ", "
 
     Stdout.line
         """
-        potato
         \(outputPart1Str)
-        \(locsStr)
         """
 
 Motion : [Up, Right, Down, Left]
@@ -69,24 +67,38 @@ doMotionForLoc = \loc, motion ->
 doMotion : Loc, Loc, Motion -> { head : Loc, tail : Loc }
 doMotion = \head, tail, motion ->
     newHead = doMotionForLoc head motion
-    newTail = moveTail { head: newHead, tail: tail }
+
+    newTail =
+        if Num.abs (tail.v - newHead.v) == 2 then
+            if tail.h != newHead.h then
+                a = doMotionForLoc tail motion
+                { a & h: newHead.h }
+
+            else
+                doMotionForLoc tail motion
+
+        else if Num.abs (tail.h - newHead.h) == 2 then
+            if tail.v != newHead.v then
+                a = doMotionForLoc tail motion
+                { a & v: newHead.v }
+
+            else
+                doMotionForLoc tail motion
+
+        else
+            tail
 
     { head: newHead, tail: newTail }
 
-moveTail : { head : Loc, tail : Loc } -> Loc
-moveTail = \{ head, tail } ->
-    # FIXME
-    tail
-
-findPositionsTailOfRopeVisits : Str -> List Loc
+findPositionsTailOfRopeVisits : Str -> Set Loc
 findPositionsTailOfRopeVisits = \input ->
     motions = parseMotions input
 
     motions
-    |> List.walk (T { v: 0, h: 0 } { v: 0, h: 0 } []) \T locH locT list, motion ->
+    |> List.walk (T { v: 0, h: 0 } { v: 0, h: 0 } Set.empty) \T locH locT uniqueLocs, motion ->
         { head, tail } = doMotion locH locT motion
 
-        T head tail (List.append list tail)
+        T head tail (Set.insert uniqueLocs tail)
     |> \T _ _ list -> list
 
 # Tests
@@ -102,4 +114,4 @@ exampleInput =
     R 2
     """
 
-expect List.len (Set.toList (Set.fromList (findPositionsTailOfRopeVisits exampleInput))) == 13
+expect Set.len (findPositionsTailOfRopeVisits exampleInput) == 13
