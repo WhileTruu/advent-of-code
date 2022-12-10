@@ -18,15 +18,17 @@ main =
     exampleOutputPart2 = findPositionsTailOfRopeVisits exampleInput2 9 |> Set.len |> Num.toStr
 
     outputPart1Str = outputPart1 |> Set.len |> Num.toStr
-    locsStr = outputPart1 |> Set.toList |> List.map locToStr |> Str.joinWith ", "
+    locsStr = findPositionsTailOfRopeVisits exampleInput2 9 |> Set.toList |> List.map locToStr |> Str.joinWith ", "
 
     outputPart2Str = findPositionsTailOfRopeVisits input 9 |> Set.len |> Num.toStr
 
     Stdout.line
         """
-        output part 1: \(outputPart1Str)
-        example output part 2: \(exampleOutputPart2)
+        output part 1: \(outputPart1Str) (should be 6376)
+        example output part 2: \(exampleOutputPart2) (should be 36)
         output part 2: \(outputPart2Str)
+
+        \(locsStr)
         """
 
 Motion : [Up, Right, Down, Left]
@@ -85,19 +87,26 @@ doMotion = \head, tails, motion ->
 
 moveTail : { head : Loc, tail : Loc } -> Loc
 moveTail = \{ head, tail } ->
-    vDiff = head.v - tail.v
-    hDiff = head.h - tail.h
+    vDiff = (head.v - tail.v) // 2
+    hDiff = (head.h - tail.h) // 2
 
-    if vDiff == -2 then
-        { v: tail.v - 1, h: head.h }
-    else if vDiff == 2 then
-         { v: tail.v + 1, h: head.h }
-    else if hDiff == -2 then
-        { v: head.v, h: tail.h - 1 }
-    else if hDiff == 2 then
-        { v: head.v, h: tail.h + 1 }
-    else
-        tail
+    v =
+        if Num.abs vDiff == 1 then
+            tail.v + vDiff
+        else if Num.abs hDiff == 1 then
+            head.v
+        else
+            tail.v
+
+    h =
+        if Num.abs hDiff == 1 then
+            tail.h + hDiff
+        else if Num.abs vDiff == 1 then
+            head.h
+        else
+            tail.h
+
+    { v, h }
 
 findPositionsTailOfRopeVisits : Str, Nat -> Set Loc
 findPositionsTailOfRopeVisits = \input, numTails ->
