@@ -68,27 +68,28 @@ doMotion : Loc, Loc, Motion -> { head : Loc, tail : Loc }
 doMotion = \head, tail, motion ->
     newHead = doMotionForLoc head motion
 
-    newTail =
-        if Num.abs (tail.v - newHead.v) == 2 then
-            if tail.h != newHead.h then
-                a = doMotionForLoc tail motion
-                { a & h: newHead.h }
-
-            else
-                doMotionForLoc tail motion
-
-        else if Num.abs (tail.h - newHead.h) == 2 then
-            if tail.v != newHead.v then
-                a = doMotionForLoc tail motion
-                { a & v: newHead.v }
-
-            else
-                doMotionForLoc tail motion
-
-        else
-            tail
+    newTail = moveTail { head: newHead, tail } motion
 
     { head: newHead, tail: newTail }
+
+moveTail : { head: Loc, tail: Loc }, Motion -> Loc
+moveTail = \{ head, tail }, motion ->
+    if Num.abs (tail.v - head.v) == 2 then
+        if tail.h != head.h then
+            a = doMotionForLoc tail motion
+
+            { a & h: head.h }
+        else
+            doMotionForLoc tail motion
+    else if Num.abs (tail.h - head.h) == 2 then
+        if tail.v != head.v then
+            a = doMotionForLoc tail motion
+
+            { a & v: head.v }
+        else
+            doMotionForLoc tail motion
+    else
+        tail
 
 findPositionsTailOfRopeVisits : Str -> Set Loc
 findPositionsTailOfRopeVisits = \input ->
