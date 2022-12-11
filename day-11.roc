@@ -9,7 +9,7 @@ app "day-11"
 main : Task {} *
 main =
     inspectCountsStr =
-        runRounds input 20
+        runRounds exampleInput 20
         |> Dict.walk "" \state, k, v ->
             kStr = Num.toStr k
             vStr = Num.toStr v
@@ -17,7 +17,7 @@ main =
             "\(state)Monkey \(kStr) inspected items \(vStr) times.\n"
 
     lvl =
-        levelOfMonkeyBusiness input 20
+        levelOfMonkeyBusiness exampleInput 20
         |> Num.toStr
 
     Stdout.line
@@ -27,9 +27,9 @@ main =
         """
 
 Monkey : {
-    items : List U64,
-    operation : U64 -> U64,
-    test : U64 -> Nat,
+    items : List I64,
+    operation : I64 -> I64,
+    test : I64 -> Nat,
 }
 
 input : List Monkey
@@ -136,7 +136,7 @@ exampleMonkey3 = {
     test: \a -> if a % 17 == 0 then 0 else 1,
 }
 
-levelOfMonkeyBusiness : List Monkey, Nat -> U64
+levelOfMonkeyBusiness : List Monkey, Nat -> I64
 levelOfMonkeyBusiness = \monkeys, rounds ->
     runRounds monkeys rounds
     |> Dict.toList
@@ -145,11 +145,11 @@ levelOfMonkeyBusiness = \monkeys, rounds ->
     |> List.takeFirst 2
     |> List.product
 
-runRounds : List Monkey, Nat -> Dict Nat U64
+runRounds : List Monkey, Nat -> Dict Nat I64
 runRounds = \monkeys, numRounds ->
     runRoundsHelp (T monkeys Dict.empty) numRounds
 
-runRoundsHelp : [T (List Monkey) (Dict Nat U64)], Nat -> Dict Nat U64
+runRoundsHelp : [T (List Monkey) (Dict Nat I64)], Nat -> Dict Nat I64
 runRoundsHelp = \T monkeys inspectCounts, numRounds ->
     if numRounds == 0 then
         inspectCounts
@@ -158,7 +158,7 @@ runRoundsHelp = \T monkeys inspectCounts, numRounds ->
 
         runRoundsHelp monkeysAndInspectCounts (numRounds - 1)
 
-runRoundHelp : [T (List Monkey) (Dict Nat U64)], Nat -> [T (List Monkey) (Dict Nat U64)]
+runRoundHelp : [T (List Monkey) (Dict Nat I64)], Nat -> [T (List Monkey) (Dict Nat I64)]
 runRoundHelp = \T monkeys inspectCounts, index ->
     when List.get monkeys index is
         Ok monkey ->
@@ -171,15 +171,15 @@ runRoundHelp = \T monkeys inspectCounts, index ->
             newInspectCounts =
                 Dict.update inspectCounts index \a ->
                     when a is
-                        Missing -> Present (Num.toU64 (List.len monkey.items))
-                        Present value -> Present (Num.toU64 (List.len monkey.items) + value)
+                        Missing -> Present (Num.toI64 (List.len monkey.items))
+                        Present value -> Present (Num.toI64 (List.len monkey.items) + value)
 
             runRoundHelp (T newMonkeys newInspectCounts) (index + 1)
 
         Err _ ->
             T monkeys inspectCounts
 
-inspectAndThrow : Monkey, List Monkey, U64 -> List Monkey
+inspectAndThrow : Monkey, List Monkey, I64 -> List Monkey
 inspectAndThrow = \{ operation, test }, monkeys, item ->
     inspectWorry = operation item
     boredWorry = inspectWorry // 3
@@ -191,7 +191,7 @@ inspectAndThrow = \{ operation, test }, monkeys, item ->
 
     List.set monkeys monkeyIndex { monkey & items: List.append monkey.items boredWorry }
 
-listGetCrashDebugStr : List Monkey, Nat, U64 -> Str
+listGetCrashDebugStr : List Monkey, Nat, I64 -> Str
 listGetCrashDebugStr = \monkeys, index, itemWorry ->
     items = whatItemsAreMonkeysHolding monkeys
     indexStr = Num.toStr index
