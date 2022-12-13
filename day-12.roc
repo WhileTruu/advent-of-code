@@ -31,43 +31,43 @@ findShortestPathLen = \input ->
     graph = parseGrid input
 
     start = findStart graph
+    end = findEnd graph
 
-    findShortestPathDistance graph { start, end: "E" }
-    |> Result.withDefault 69420
+    findShortestPathDistance graph { start: end, end: "a" }
 
-findShortestPathDistance : List (List Str), { start : Pos, end : Str } -> Result Nat [OutOfBounds, NoPath]
+findShortestPathDistance : List (List Str), { start : Pos, end : Str } -> Nat
 findShortestPathDistance = \graph, { start, end } ->
     findShortestPathDistanceHelp graph { end } [T start 0] (Set.single start)
 
-findShortestPathDistanceHelp : List (List Str), { end : Str }, List [T Pos Nat], Set Pos -> Result Nat [OutOfBounds, NoPath]
+findShortestPathDistanceHelp : List (List Str), { end : Str }, List [T Pos Nat], Set Pos -> Nat
 findShortestPathDistanceHelp = \graph, { end }, queue, explored ->
     when queue is
-        [] -> Err NoPath
+        [] -> 420
         [T first distance, ..] ->
             rest = List.dropFirst queue
 
-            elevationStr <- getFromGraph graph first |> Result.try
-            elevation <- elevationFromStr elevationStr |> Result.try
+            elevationStr = getFromGraph graph first |> Result.withDefault ""
+            elevation = elevationFromStr elevationStr |> Result.withDefault 100
 
             if elevationStr == end then
-                Ok distance
+                distance
             else
                 unexplored : Set Pos
                 unexplored =
                     [{ x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }]
                     |> List.keepOks \pos ->
-                        xLimit <- List.first graph |> Result.map List.len |> Result.try
+                        xLimit = List.first graph |> Result.map List.len |> Result.withDefault 0
                         yLimit = List.len graph
 
-                        x <- (Num.toI64 first.x + pos.x) |> Num.toNatChecked |> Result.try
-                        y <- (Num.toI64 first.y + pos.y) |> Num.toNatChecked |> Result.try
+                        x = (Num.toI64 first.x + pos.x) |> Num.toNatChecked |> Result.withDefault 0
+                        y = (Num.toI64 first.y + pos.y) |> Num.toNatChecked |> Result.withDefault 0
 
-                        posElevation <-
+                        posElevation =
                             getFromGraph graph { x, y }
                             |> Result.try elevationFromStr
-                            |> Result.try
+                            |> Result.withDefault 200
 
-                        if x < xLimit && y < yLimit && posElevation <= elevation + 1 then
+                        if x < xLimit && y < yLimit && posElevation + 1 >= elevation then
                             Ok { x, y }
                         else
                             Err UnreachablePos
