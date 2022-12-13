@@ -15,141 +15,105 @@ main =
         |> Task.await
 
     # shortestExamplePathLenStr = findShortestPathLen exampleInput |> Num.toStr
-    shortestPathLenStr = findShortestPathLen input |> Num.toStr
-
-    v =
-        input
-        |> parseGrid
-        |> gridToElevationGrid
-        |> List.map \line ->
-            List.map line Num.toStr |> Str.joinWith " "
-        |> Str.joinWith "\n"
+    (T shortestPath graphStr) = findShortestPathLen exampleInput
+    sps = shortestPath |> Num.toStr
 
     Stdout.line
         """
-
-        shortest path len: \(shortestPathLenStr)
-        \(v)
+        
+        shortest path len: \(sps)
+        
         """
 
 Pos : { x : Nat, y : Nat }
 
-findShortestPathLen : Str -> Nat
+findShortestPathLen : Str -> [T Nat Str]
 findShortestPathLen = \input ->
     grid = parseGrid input
-    elevationGrid = gridToElevationGrid grid
 
     end = findEnd grid
     start = findStart grid
 
-    cellsWithCounts = calcSomething { start, grid: elevationGrid, before: [], current: T end 0, after: [] }
+    graph : Dict Pos (Set Pos)
+    graph = createGraph grid
 
-    shortestPath = getShortestPath { end, cellsWithCounts, grid: elevationGrid } [] start
+    v = graphToStr graph
+    x = findPaths graph { start, end }
 
-    # dbg (List.findLast cellsWithCounts \T a _ -> a.x < 30)
+    z = List.map x List.len |> List.sortAsc |> List.first |> Result.withDefault 420
 
-    (List.len shortestPath) - 1
+    dbg
+        (x |> List.map (\a -> Str.joinWith (List.map a posToStr) ", ") |> Str.joinWith "\n")
 
-getShortestPath :{
-        end : Pos,
-        cellsWithCounts : List [T Pos Nat],
-        grid : List (List Nat),
-    },
-    List Pos,
-    Pos
-    -> List Pos
-getShortestPath = \{ end, cellsWithCounts, grid }, path, pos ->
-    if pos == end then
-        List.append path pos
-    else
-        xMax =
-            List.first grid
-            |> Result.map \a -> List.len a - 1
-            |> Result.withDefault 0
+    T z v
 
-        yMax = List.len grid - 1
+findPaths : Dict Pos (Set Pos), { start : Pos, end : Pos } -> List (List Pos)
+findPaths = \graph, { start, end } ->
+    findPathsHelp graph { end } [T start [] [start]] []
 
-        adjacentCells =
-            getAdjacentCells pos { xMax, yMax }
-            |> List.keepIf \a ->
-                a1 = Num.toI64 (getElevation pos grid)
-                a2 = Num.toI64 (getElevation a grid)
+findPathsHelp : Dict Pos (Set Pos), { end : Pos }, List [T Pos (List Pos) (List Pos)], List (List Pos) -> List (List Pos)
+findPathsHelp = \graph, { end }, queue, paths ->
+    # dbg queue
+    when queue is
+        [] -> paths
+        [T fst path explored, ..] ->
+            rest = List.dropFirst queue
+            newPath = List.append path fst
 
-                Num.abs (a1 - a2) <= 1
-            |> List.walk [] \state, adjacentPos ->
-                List.findFirst cellsWithCounts \T a _ -> a == adjacentPos
-                |> Result.map (\a -> List.append state a)
-                |> Result.withDefault state
-            |> List.sortWith \T _ a1, T _ a2 -> Num.compare a1 a2
+            if fst == end then
+                findPathsHelp graph { end } rest (List.append paths newPath)
+            else
+                unexplored =
+                    Dict.get graph fst
+                    |> Result.map Set.toList
+                    |> Result.withDefault []
+                    |> List.dropIf (\a -> List.contains explored a)
 
-        # dbg (getAdjacentCells pos { xMax, yMax })
+                findPathsHelp
+                    graph
+                    { end }
+                    (List.concat rest (List.map unexplored \a -> T a newPath (List.concat explored unexplored)))
+                    paths
 
-        when adjacentCells is
-            [] -> List.append path pos
-            [T fst _, ..] ->
-                getShortestPath
-                    { end, cellsWithCounts, grid }
-                    (List.append path pos)
-                    fst
+createGraph : List (List Str) -> Dict Pos (Set Pos)
+createGraph = \grid ->
+    grid
+    |> List.walk (T1 Dict.empty 0) \T1 state1 y, line ->
+        line
+        |> List.walk (T2 Dict.empty 0) \T2 state2 x, value ->
+            getAdjacentCells { x: x, y: y } value grid
+            |> Set.fromList
+            |> \a -> Dict.insert state2 { x, y } a
+            |> \a -> T2 a (x + 1)
+        |> \T2 a _ -> T1 (Dict.insertAll state1 a) (y + 1)
+    |> \T1 a _ -> a
 
-calcSomething :{
-        start : Pos,
-        grid : List (List Nat),
+graphToStr : Dict Pos (Set Pos) -> Str
+graphToStr = \graph ->
+    Dict.toList graph
+    |> List.map \T pos set ->
+        posStr = posToStr pos
+        posListStr = List.map (Set.toList set) posToStr |> Str.joinWith ", "
 
-        # Main
-        before : List [T Pos Nat],
-        current : [T Pos Nat],
-        after : List [T Pos Nat],
-    }
-    -> List [T Pos Nat]
-calcSomething = \{ start, grid, before, current, after } ->
-    (T pos counter) = current
+        "\(posStr): [\(posListStr)]"
+    |> Str.joinWith "\n"
 
-    if pos == start then
-        List.append before current
-    else
-        xMax =
-            List.first grid
-            |> Result.map \a -> List.len a - 1
-            |> Result.withDefault 0
+posToStr : Pos -> Str
+posToStr = \{ x, y } ->
+    xStr = Num.toStr x
+    yStr = Num.toStr y
 
-        yMax = List.len grid - 1
+    "(\(xStr), \(yStr))"
 
-        posElevation = getElevation pos grid
+getAdjacentCells : Pos, Str, List (List Str) -> List Pos
+getAdjacentCells = \pos, value, grid ->
+    xMax =
+        List.first grid
+        |> Result.map \a -> List.len a - 1
+        |> Result.withDefault 0
 
-        adjacentCells =
-            getAdjacentCells pos { xMax, yMax }
-            |> List.keepIf \a ->
-                a1 = Num.toI64 posElevation
-                a2 = Num.toI64 (getElevation a grid)
+    yMax = List.len grid - 1
 
-                Num.abs (a1 - a2) <= 1
-            |> List.dropIf \a ->
-                List.any before (\T mainA _ -> mainA == a) || List.any after (\T mainA _ -> mainA == a)
-            |> List.map (\a -> T a (counter + 1))
-
-        newBefore = List.append before (T pos counter)
-        newAfter = List.concat after adjacentCells
-
-        when newAfter is
-            [] -> List.append before current
-            [fst, ..] ->
-                calcSomething {
-                    start,
-                    grid,
-                    before: newBefore,
-                    current: fst,
-                    after: List.dropFirst newAfter,
-                }
-
-getElevation : Pos, List (List Nat) -> Nat
-getElevation = \pos, grid ->
-    List.get grid pos.y
-    |> Result.try \a -> List.get a pos.x
-    |> Result.withDefault 100
-
-getAdjacentCells : Pos, { xMax : Nat, yMax : Nat } -> List Pos
-getAdjacentCells = \pos, { xMax, yMax } ->
     [
         if pos.x == 0 then Err NoLeft else Ok { pos & x: pos.x - 1 },
         if pos.x == xMax then Err NoRight else Ok { pos & x: pos.x + 1 },
@@ -157,6 +121,16 @@ getAdjacentCells = \pos, { xMax, yMax } ->
         if pos.y == yMax then Err NoUp else Ok { pos & y: pos.y + 1 },
     ]
     |> List.keepOks \a -> a
+    |> List.keepIf \a ->
+        a1 = Num.toI64 (elevationFromStr value)
+        a2 =
+            List.get grid a.y
+            |> Result.try \line -> List.get line a.x
+            |> Result.map elevationFromStr
+            |> Result.withDefault 100
+            |> Num.toI64
+
+        Num.abs (a1 - a2) <= 1
 
 parseGrid : Str -> List (List Str)
 parseGrid = \input ->
@@ -178,19 +152,17 @@ findStart = \grid ->
         |> Result.map (\a -> Break { state & x: a })
         |> Result.withDefault (Continue { state & y: state.y + 1 })
 
-gridToElevationGrid : List (List Str) -> List (List Nat)
-gridToElevationGrid = \grid ->
-    List.map grid \line ->
-        List.map line \value ->
-            if value == "S" then
-                0
-            else if value == "E" then
-                25
-            else
-                Str.toUtf8 value
-                |> List.first
-                |> Result.map \a -> Num.toNat (a - 97)
-                |> Result.withDefault 100
+elevationFromStr : Str -> Nat
+elevationFromStr = \value ->
+    if value == "S" then
+        0
+    else if value == "E" then
+        25
+    else
+        Str.toUtf8 value
+        |> List.first
+        |> Result.map \a -> Num.toNat (a - 97)
+        |> Result.withDefault 100
 
 exampleInput : Str
 exampleInput =
@@ -202,4 +174,4 @@ exampleInput =
     abdefghi
     """
 
-expect findShortestPathLen exampleInput == 31
+# expect findShortestPathLen exampleInput == 31
