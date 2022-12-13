@@ -20,9 +20,9 @@ main =
 
     Stdout.line
         """
-        
+
         shortest path len: \(sps)
-        
+
         """
 
 Pos : { x : Nat, y : Nat }
@@ -41,27 +41,28 @@ findShortestPathLen = \input ->
     x = findPaths graph { start, end }
 
     z = List.map x List.len |> List.sortAsc |> List.first |> Result.withDefault 420
-
-    dbg
-        (x |> List.map (\a -> Str.joinWith (List.map a posToStr) ", ") |> Str.joinWith "\n")
-
+    dbg (x |> List.map (\a -> Str.joinWith (List.map a posToStr) ", ") |> Str.joinWith "\n")
     T z v
 
 findPaths : Dict Pos (Set Pos), { start : Pos, end : Pos } -> List (List Pos)
 findPaths = \graph, { start, end } ->
-    findPathsHelp graph { end } [T start [] [start]] []
+    findPathsHelp graph { end } [T start []] [start] []
 
-findPathsHelp : Dict Pos (Set Pos), { end : Pos }, List [T Pos (List Pos) (List Pos)], List (List Pos) -> List (List Pos)
-findPathsHelp = \graph, { end }, queue, paths ->
-    # dbg queue
+findPathsHelp : Dict Pos (Set Pos), { end : Pos }, List [T Pos (List Pos)], List Pos, List (List Pos) -> List (List Pos)
+findPathsHelp = \graph, { end }, queue, explored, paths ->
+    #dbg queue
     when queue is
         [] -> paths
-        [T fst path explored, ..] ->
+        [T fst path, ..] ->
             rest = List.dropFirst queue
-            newPath = List.append path fst
+            newPath = (List.append path fst)
 
             if fst == end then
-                findPathsHelp graph { end } rest (List.append paths newPath)
+                [newPath]
+
+            # else if List.any paths (\a -> List.startsWith a path) then
+            #     findPathsHelp graph { end } rest paths
+
             else
                 unexplored =
                     Dict.get graph fst
@@ -69,10 +70,9 @@ findPathsHelp = \graph, { end }, queue, paths ->
                     |> Result.withDefault []
                     |> List.dropIf (\a -> List.contains explored a)
 
-                findPathsHelp
-                    graph
-                    { end }
-                    (List.concat rest (List.map unexplored \a -> T a newPath (List.concat explored unexplored)))
+                findPathsHelp graph { end }
+                    (List.concat rest (List.map unexplored \a -> T a newPath))
+                    (List.concat explored unexplored)
                     paths
 
 createGraph : List (List Str) -> Dict Pos (Set Pos)
@@ -130,7 +130,7 @@ getAdjacentCells = \pos, value, grid ->
             |> Result.withDefault 100
             |> Num.toI64
 
-        Num.abs (a1 - a2) <= 1
+        a2 - a1 <= 1
 
 parseGrid : Str -> List (List Str)
 parseGrid = \input ->
@@ -174,4 +174,4 @@ exampleInput =
     abdefghi
     """
 
-# expect findShortestPathLen exampleInput == 31
+expect findShortestPathLen exampleInput == 31
