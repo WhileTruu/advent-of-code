@@ -14,8 +14,7 @@ main =
         |> Task.onFail \_ -> crash "Could not read file."
         |> Task.await
 
-    # shortestExamplePathLenStr = findShortestPathLen exampleInput |> Num.toStr
-    (T shortestPath graphStr) = findShortestPathLen exampleInput
+    shortestPath = findShortestPathLen input
     sps = shortestPath |> Num.toStr
 
     Stdout.line
@@ -27,7 +26,7 @@ main =
 
 Pos : { x : Nat, y : Nat }
 
-findShortestPathLen : Str -> [T Nat Str]
+findShortestPathLen : Str -> Nat
 findShortestPathLen = \input ->
     grid = parseGrid input
 
@@ -37,43 +36,41 @@ findShortestPathLen = \input ->
     graph : Dict Pos (Set Pos)
     graph = createGraph grid
 
-    v = graphToStr graph
-    x = findPaths graph { start, end }
+    findShortestPathDistance graph { start, end }
 
-    z = List.map x List.len |> List.sortAsc |> List.first |> Result.withDefault 420
-    dbg (x |> List.map (\a -> Str.joinWith (List.map a posToStr) ", ") |> Str.joinWith "\n")
-    T z v
+findShortestPathDistance : Dict Pos (Set Pos), { start : Pos, end : Pos } -> Nat
+findShortestPathDistance = \graph, { start, end } ->
+    findShortestPathDistanceHelp graph { end } [T start 0] (Set.single start)
 
-findPaths : Dict Pos (Set Pos), { start : Pos, end : Pos } -> List (List Pos)
-findPaths = \graph, { start, end } ->
-    findPathsHelp graph { end } [T start []] [start] []
-
-findPathsHelp : Dict Pos (Set Pos), { end : Pos }, List [T Pos (List Pos)], List Pos, List (List Pos) -> List (List Pos)
-findPathsHelp = \graph, { end }, queue, explored, paths ->
-    #dbg queue
+findShortestPathDistanceHelp : Dict Pos (Set Pos), { end : Pos }, List [T Pos Nat], Set Pos -> Nat
+findShortestPathDistanceHelp = \graph, { end }, queue, explored ->
     when queue is
-        [] -> paths
-        [T fst path, ..] ->
+        [] -> 0
+        [T first distance, ..] ->
             rest = List.dropFirst queue
-            newPath = (List.append path fst)
 
-            if fst == end then
-                [newPath]
-
-            # else if List.any paths (\a -> List.startsWith a path) then
-            #     findPathsHelp graph { end } rest paths
+            if first == end then
+                distance
 
             else
+                unexplored : Set Pos
                 unexplored =
-                    Dict.get graph fst
-                    |> Result.map Set.toList
-                    |> Result.withDefault []
-                    |> List.dropIf (\a -> List.contains explored a)
+                    Dict.get graph first
+                    |> Result.map \a -> Set.difference a explored
+                    |> Result.withDefault Set.empty
 
-                findPathsHelp graph { end }
-                    (List.concat rest (List.map unexplored \a -> T a newPath))
-                    (List.concat explored unexplored)
-                    paths
+                newQueue : List [T Pos Nat]
+                newQueue =
+                    unexplored
+                    |> Set.toList
+                    |> List.map \a -> T a (distance + 1)
+                    |> \a -> List.concat rest a
+
+                newExplored : Set Pos
+                newExplored =
+                    Set.union explored unexplored
+
+                findShortestPathDistanceHelp graph { end } newQueue newExplored
 
 createGraph : List (List Str) -> Dict Pos (Set Pos)
 createGraph = \grid ->
