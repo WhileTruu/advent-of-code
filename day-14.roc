@@ -14,7 +14,7 @@ main =
         |> Task.onFail \_ -> crash "Could not read file."
         |> Task.await
 
-    rawPaths = parseRawPaths exampleInput
+    rawPaths = parseRawPaths input
     rawBounds = calcRawBounds rawPaths
     rawSandPosition = { x: 500, y: 0 }
 
@@ -190,6 +190,8 @@ addPathToGrid = \grid, path ->
                         # FIXME the order of second and first, could it be reversed too?
                         if i >= first.y && i <= second.y then
                             List.set row first.x "#"
+                        else if i >= second.y && i <= first.y then
+                            List.set row first.x "#"
                         else
                             row
 
@@ -200,7 +202,9 @@ addPathToGrid = \grid, path ->
                         if i == first.y then
                             List.mapWithIndex row \cell, j ->
                                 # FIXME the order of second and first, could it be reversed too?
-                                if j >= second.x && j <= first.x then
+                                if j >= first.x && j <= second.x then
+                                    "#"
+                                else if j >= second.x && j <= first.x then
                                     "#"
                                 else
                                     cell
