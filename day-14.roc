@@ -25,6 +25,8 @@ main =
     }
     grid = createGrid paths
         |> addSand sandPosition
+        |> dropSand sandPosition
+        |> dropSand sandPosition
 
     drawnGrid = drawGrid grid
 
@@ -32,6 +34,35 @@ main =
         """
         \(drawnGrid)
         """
+
+dropSand : List (List Str), { x : Nat, y : Nat } -> List (List Str)
+dropSand = \grid, sand ->
+    grid
+        |> List.walkUntil (T [] { i: 0, x: sand.x }) \T rows { i, x }, row ->
+            when List.get grid (i + 1) is
+                Ok nextRow ->
+                    when List.get nextRow x is
+                        Ok "." ->
+                            Continue (T (List.append rows row) { i: i + 1, x })
+
+                        _ ->
+                            sandyRow : List Str
+                            sandyRow = List.set row x "o"
+
+                            newGrid =
+                                rows
+                                |> List.append sandyRow
+                                |> List.concat (List.split grid (i + 1) |> .others)
+
+                            Break (T newGrid { i: i + 1, x })
+                _ ->
+                    Break (T rows { i: i + 1, x })
+        |> \T a _ -> a
+
+
+
+
+
 
 parseRawPaths : Str -> List (List { x : Nat, y : Nat })
 parseRawPaths = \input -> input |> Str.split "\n" |> List.map parsePath
