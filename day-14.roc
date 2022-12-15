@@ -14,20 +14,41 @@ main =
         |> Task.onFail \_ -> crash "Could not read file."
         |> Task.await
 
-    paths = parsePaths exampleInput
-    dbg paths |> List.map (\a -> List.map a .y) |> List.join |> List.min
+    rawPaths = parseRawPaths exampleInput
+    rawBounds = calcRawBounds rawPaths
+    rawSandPosition = { x: 500, y: 0 }
 
-    drawnPaths = drawPaths paths
+    paths = translatePathsToZeroBasedGrid rawPaths
+    sandPosition = {
+        x: rawSandPosition.x - rawBounds.minX,
+        y: rawSandPosition.y - rawBounds.minY,
+    }
+    grid = createGrid paths
+        |> addSand sandPosition
+
+    drawnGrid = drawGrid grid
 
     Stdout.line
         """
-        \(drawnPaths)
+        \(drawnGrid)
         """
 
-parsePaths : Str -> List (List { x: Nat, y: Nat })
-parsePaths = \input -> input |> Str.split "\n" |> List.map parsePath
+parseRawPaths : Str -> List (List { x : Nat, y : Nat })
+parseRawPaths = \input -> input |> Str.split "\n" |> List.map parsePath
 
-parsePath : Str -> List { x: Nat, y: Nat }
+translatePathsToZeroBasedGrid : List (List { x : Nat, y : Nat }) -> List (List { x : Nat, y : Nat })
+translatePathsToZeroBasedGrid = \paths ->
+    bounds = calcRawBounds paths
+
+    paths
+    |> List.map \path ->
+        path
+        |> List.map \point -> {
+            x: point.x - bounds.minX,
+            y: point.y - bounds.minY,
+        }
+
+parsePath : Str -> List { x : Nat, y : Nat }
 parsePath = \input ->
     input
     |> Str.split " -> "
@@ -42,19 +63,85 @@ exampleInput =
     503,4 -> 502,4 -> 502,9 -> 494,9
     """
 
-drawPaths : List (List { x: Nat, y: Nat }) -> Str
-drawPaths = \paths ->
+createGrid : List (List { x : Nat, y : Nat }) -> List (List Str)
+createGrid = \paths ->
     bounds = calcBounds paths
 
     row : List Str
     row = List.repeat "." (bounds.maxX - bounds.minX + 1)
 
-    List.repeat row (bounds.maxY - bounds.minY + 1)
+    grid : List (List Str)
+    grid =
+        List.repeat row (bounds.maxY - bounds.minY + 1)
+
+    paths
+    |> List.walk grid addPathToGrid
+
+drawGrid : List (List Str) -> Str
+drawGrid = \grid -> grid
     |> List.map (\a -> Str.joinWith a "")
     |> Str.joinWith "\n"
 
-calcBounds : List (List { x: Nat, y: Nat }) -> { minX: Nat, maxX: Nat, minY: Nat, maxY: Nat }
+addSand : List (List Str), { x : Nat, y : Nat } -> List (List Str)
+addSand = \grid, sandPosition ->
+    List.mapWithIndex grid \row, i ->
+        if i == sandPosition.y then
+            List.set row sandPosition.x "+"
+        else
+            row
+
+addPathToGrid : List (List Str), List { x : Nat, y : Nat } -> List (List Str)
+addPathToGrid = \grid, path ->
+    others = List.drop path 2
+
+    when path is
+        [first, second, ..] ->
+            if first.x == second.x then
+                newGrid =
+                    List.mapWithIndex grid \row, i ->
+                        # FIXME the order of second and first, could it be reversed too?
+                        if i >= first.y && i <= second.y then
+                            List.set row first.x "#"
+                        else
+                            row
+
+                addPathToGrid newGrid (List.prepend others second)
+            else if first.y == second.y then
+                newGrid =
+                    List.mapWithIndex grid \row, i ->
+                        if i == first.y then
+                            List.mapWithIndex row \cell, j ->
+                                # FIXME the order of second and first, could it be reversed too?
+                                if j >= second.x && j <= first.x then
+                                    "#"
+                                else
+                                    cell
+                        else
+                            row
+
+                addPathToGrid newGrid (List.prepend others second)
+            else
+                addPathToGrid grid (List.prepend others second)
+
+        _ -> grid
+
+calcBounds : List (List { x : Nat, y : Nat }) -> { minX : Nat, maxX : Nat, minY : Nat, maxY : Nat }
 calcBounds = \paths ->
+    minY = 0
+    minX = 0
+
+    boundsResult =
+        maxX <- paths |> List.map (\a -> List.map a .x) |> List.join |> List.max |> Result.try
+        maxY <- paths |> List.map (\a -> List.map a .y) |> List.join |> List.max |> Result.map
+
+        { minX, maxX, minY, maxY }
+
+    when boundsResult is
+        Ok a -> a
+        Err _ -> crash "Could not get min and max."
+
+calcRawBounds : List (List { x : Nat, y : Nat }) -> { minX : Nat, maxX : Nat, minY : Nat, maxY : Nat }
+calcRawBounds = \paths ->
     minY = 0
 
     boundsResult =
