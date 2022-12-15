@@ -30,9 +30,9 @@ main =
 
     sortedExampleStuff =
         packetsFromInput exampleInput
-        # |> List.append (PacketList [PacketList [PacketInt 2]])
-        # |> List.append (PacketList [PacketList [PacketInt 6]])
-        |> List.sortWith \a, b -> pairOrderHelp a b [] []
+        |> List.append (PacketList [PacketList [PacketInt 2]])
+        |> List.append (PacketList [PacketList [PacketInt 6]])
+        |> bubbleSort pairOrder
         |> List.map printPacketData
         |> Str.joinWith "\n"
 
@@ -69,28 +69,28 @@ pairOrder = \a, b ->
         Pair (PacketInt left) (PacketList right) -> pairOrder (PacketList [PacketInt left]) (PacketList right)
         Pair (PacketList left) (PacketInt right) -> pairOrder (PacketList left) (PacketList [PacketInt right])
 
-pairOrderHelp : PacketData, PacketData, List PacketData, List PacketData -> [GT, LT, EQ]
-pairOrderHelp = \a, b, aOthers, bOthers ->
-    #dbg a
-    when Pair a b is
-        Pair (PacketList left) (PacketList right) ->
-            if List.isEmpty left && List.isEmpty right then
-                pairOrderHelp (PacketList aOthers) (PacketList bOthers) [] []
-            else if List.isEmpty left then
-                LT
-            else if List.isEmpty right then
-                GT
-            else
-                leftFirst = List.first left |> resultDefaultCrash "yolo"
-                rightFirst = List.first right |> resultDefaultCrash "yolo"
-                othersLeft = List.drop left 1
-                othersRight = List.drop right 1
+bubbleSort : List a, (a, a -> [GT, LT, EQ]) -> List a | a has Bool.Eq
+bubbleSort = \list, order ->
+    pass1 = bubbleSortPass list order []
+    pass2 = bubbleSortPass pass1 order []
 
-                pairOrderHelp leftFirst rightFirst aOthers bOthers
+    if pass1 == pass2 then
+        pass1
+    else
+        bubbleSort pass2 order
 
-        Pair (PacketInt left) (PacketInt right) -> Num.compare left right
-        Pair (PacketInt left) (PacketList right) -> pairOrderHelp (PacketList [PacketInt left]) (PacketList right) [] []
-        Pair (PacketList left) (PacketInt right) -> pairOrderHelp (PacketList left) (PacketList [PacketInt right]) [] []
+bubbleSortPass : List a, (a, a -> [GT, LT, EQ]), List a -> List a
+bubbleSortPass = \list, order, passed ->
+    when list is
+        [] -> passed
+        [first] -> List.append passed first
+        [first, second, ..] ->
+            others = list |> List.drop 2
+
+            when order first second is
+                GT -> bubbleSortPass (List.prepend others first) order (List.append passed second)
+                _ -> bubbleSortPass (List.prepend others second) order (List.append passed first)
+
 
 pairsFromInput : Str -> List [Pair PacketData PacketData]
 pairsFromInput = \input ->
@@ -200,7 +200,7 @@ expect
     packetsFromInput exampleInput
     |> List.append (PacketList [PacketList [PacketInt 2]])
     |> List.append (PacketList [PacketList [PacketInt 6]])
-    |> List.sortWith \a, b -> pairOrderHelp a b [] []
+    |> bubbleSort pairOrder
     |> List.map printPacketData
     |> Str.joinWith "\n"
     |> \a -> a ==
@@ -224,3 +224,4 @@ expect
         [[8,7,6]]
         [9]
         """
+
