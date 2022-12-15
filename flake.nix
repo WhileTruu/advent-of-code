@@ -14,8 +14,8 @@
         version = "0.0.1";
         src = pkgs.fetchurl {
           # nix-prefetch-url this URL to find the hash value
-          url = "https://github.com/roc-lang/roc/releases/download/nightly/roc_nightly-macos_apple_silicon-2022-12-13-4de0c83.tar.gz";
-          sha256 = "0q5fmxkrfblzkxlira3j31xagiw7fkax4cbikq0ll5rmkhvskbrl";
+          url = "https://github.com/roc-lang/roc/releases/download/nightly/roc_nightly-macos_apple_silicon-2022-12-15-29db3bb.tar.gz";
+          sha256 = "0pkb0d0bdplk9shhcd1imm3fphvkbw23bx7a7zmc2gsp6845wx1n";
         };
         phases = [ "installPhase" ];
         installPhase = ''
