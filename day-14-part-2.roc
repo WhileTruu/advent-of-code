@@ -39,33 +39,52 @@ main =
 
 dropSandUntilAbyss : List (List Str), { x : Nat, y : Nat }, Nat -> { count : Nat, grid : List (List Str) }
 dropSandUntilAbyss = \grid, sand, count ->
-    newGrid = dropSand grid sand
+    stuff = dropSand grid sand
 
-    if grid == newGrid then
+    if grid == stuff.grid || count == 50 then
         { count, grid }
     else
-        dropSandUntilAbyss newGrid sand (count + 1)
+        dropSandUntilAbyss stuff.grid { sand & x: stuff.x } (count + 1)
 
-dropSand : List (List Str), { x : Nat, y : Nat } -> List (List Str)
+dropSand : List (List Str), { x : Nat, y : Nat } -> { grid: List (List Str), x: Nat }
 dropSand = \grid, sand ->
     grid
-    |> List.walkUntil (T [] { i: 0, x: sand.x }) \T rows { i, x }, row ->
+    |> List.walkUntil (T [] { i: 0, x: sand.x, translatedX: sand.x }) \T rows { i, x, translatedX }, row ->
         if i == sand.y then
-            Continue (T (List.append rows row) { i: i + 1, x })
+            Continue (T (List.append rows row) { i: i + 1, x, translatedX })
         else
             when List.get grid (i + 1) is
                 Ok nextRow ->
                     when getNextSandX nextRow x is
                         Ok newX ->
-                            Continue (T (List.append rows row) { i: i + 1, x: newX })
+                            Continue (T (List.append rows row) { i: i + 1, x: newX, translatedX })
 
-                        Err Abyss ->
+                        Err AbyssLeft ->
                             newGrid =
                                 rows
                                 |> List.append row
                                 |> List.concat (List.split grid (i + 1) |> .others)
+                                |> List.walk (T2 [] 0) \T2 state index, r ->
+                                    if index == List.len grid - 1 then
+                                        T2 (List.append state (List.prepend r "#")) (index + 1)
+                                    else
+                                        T2 (List.append state (List.prepend r ".")) (index + 1)
+                                |> \T2 a _ -> a
 
-                            Break (T newGrid { i: i + 1, x })
+                            Break (T newGrid { i: i + 1, x, translatedX: sand.x + 1 })
+
+                        Err AbyssRight ->
+                            newGrid =
+                                rows
+                                |> List.append row
+                                |> List.concat (List.split grid (i + 1) |> .others)
+                                |> List.mapWithIndex \r, ri ->
+                                    if ri == List.len grid - 1 then
+                                        List.append r "#"
+                                    else
+                                        List.append r "."
+
+                            Break (T newGrid { i: i + 1, x, translatedX })
 
                         Err Bottom ->
                             sandyRow : List Str
@@ -76,7 +95,7 @@ dropSand = \grid, sand ->
                                 |> List.append sandyRow
                                 |> List.concat (List.split grid (i + 1) |> .others)
 
-                            Break (T newGrid { i: i + 1, x })
+                            Break (T newGrid { i: i + 1, x, translatedX })
 
                 _ ->
                     newGrid =
@@ -84,37 +103,35 @@ dropSand = \grid, sand ->
                         |> List.append row
                         |> List.concat (List.split grid (i + 1) |> .others)
 
-                    Break (T newGrid { i: i + 1, x })
-    |> \T a _ -> a
+                    Break (T newGrid { i: i + 1, x, translatedX })
+    |> \T a { translatedX } -> { grid: a, x: translatedX }
 
-getNextSandX : List Str, Nat -> Result Nat [Bottom, Abyss]
+getNextSandX : List Str, Nat -> Result Nat [Bottom, AbyssLeft, AbyssRight]
 getNextSandX = \next, x ->
     orList
         (getValidSandPos next x)
         (
             if x == 0 then
-                [Err Abyss]
+                [Err AbyssLeft]
             else
                 [
                     getValidSandPos next (x - 1),
                     if x >= List.len next then
-                        Err Abyss
+                        Err AbyssRight
                     else
                         getValidSandPos next (x + 1),
                 ]
         )
 
-getValidSandPos : List Str, Nat -> Result Nat [Bottom, Abyss]
+getValidSandPos : List Str, Nat -> Result Nat [Bottom]
 getValidSandPos = \row, x ->
     when List.get row x is
         Ok "." ->
             Ok x
 
-        Ok _ ->
+        _ ->
             Err Bottom
 
-        Err _ ->
-            Err Abyss
 
 orList : Result a e, List (Result a e) -> Result a e
 orList = \result, results ->
