@@ -29,17 +29,33 @@ main =
         |> Num.toStr
 
     sortedExampleStuff =
-        packetsFromInput exampleInput
+        packetsFromInput input
         |> List.append (PacketList [PacketList [PacketInt 2]])
         |> List.append (PacketList [PacketList [PacketInt 6]])
         |> bubbleSort pairOrder
+
+    sortedExampleStuffStr =
+        sortedExampleStuff
         |> List.map printPacketData
         |> Str.joinWith "\n"
+
+    decoderKey =
+        sortedExampleStuff
+        |> List.walk (T 1 1) \T state index, elem ->
+            if printPacketData elem == "[[2]]" then
+                T (state * index) (index + 1)
+            else if printPacketData elem == "[[6]]" then
+                T (state * index) (index + 1)
+            else
+                T state (index + 1)
+        |> \T state _ -> state
+        |> Num.toStr
 
     Stdout.line
         """
         \(exampleStuff)
-        \(sortedExampleStuff)
+        \(sortedExampleStuffStr)
+        \(decoderKey)
         """
 
 
