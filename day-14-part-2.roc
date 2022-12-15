@@ -14,11 +14,11 @@ main =
         |> Task.onFail \_ -> crash "Could not read file."
         |> Task.await
 
-    rawPaths = parseRawPaths exampleInput
+    rawPaths = parseRawPaths input
     rawBounds = calcRawBounds rawPaths
     rawSandPosition = { x: 500, y: 0 }
 
-    paths = translatePathsToZeroBasedGrid rawPaths
+    paths = rawPaths |> translatePathsToZeroBasedGrid
     sandPosition = {
         x: rawSandPosition.x - rawBounds.minX,
         y: rawSandPosition.y - rawBounds.minY,
@@ -41,37 +41,36 @@ dropSandUntilAbyss : List (List Str), { x : Nat, y : Nat }, Nat -> { count : Nat
 dropSandUntilAbyss = \grid, sand, count ->
     stuff = dropSand grid sand
 
-    if grid == stuff.grid || count == 50 then
+    if grid == stuff.grid || count == 40000 then
         { count, grid }
     else
-        dropSandUntilAbyss stuff.grid { sand & x: stuff.x } (count + 1)
+        dropSandUntilAbyss stuff.grid { sand & x: stuff.x } (count + stuff.count)
 
-dropSand : List (List Str), { x : Nat, y : Nat } -> { grid: List (List Str), x: Nat }
+dropSand : List (List Str), { x : Nat, y : Nat } -> { grid: List (List Str), x: Nat, count: Nat }
 dropSand = \grid, sand ->
     grid
-    |> List.walkUntil (T [] { i: 0, x: sand.x, translatedX: sand.x }) \T rows { i, x, translatedX }, row ->
+    |> List.walkUntil (T [] { i: 0, x: sand.x, translatedX: sand.x, count: 0 }) \T rows { i, x, translatedX, count }, row ->
         if i == sand.y then
-            Continue (T (List.append rows row) { i: i + 1, x, translatedX })
+            Continue (T (List.append rows row) { i: i + 1, x, translatedX, count: 0 })
         else
             when List.get grid (i + 1) is
                 Ok nextRow ->
                     when getNextSandX nextRow x is
                         Ok newX ->
-                            Continue (T (List.append rows row) { i: i + 1, x: newX, translatedX })
+                            Continue (T (List.append rows row) { i: i + 1, x: newX, translatedX, count: 0 })
 
                         Err AbyssLeft ->
                             newGrid =
                                 rows
                                 |> List.append row
                                 |> List.concat (List.split grid (i + 1) |> .others)
-                                |> List.walk (T2 [] 0) \T2 state index, r ->
-                                    if index == List.len grid - 1 then
-                                        T2 (List.append state (List.prepend r "#")) (index + 1)
+                                |> List.mapWithIndex \r, ri ->
+                                    if ri == List.len grid - 1 then
+                                        List.prepend r "#"
                                     else
-                                        T2 (List.append state (List.prepend r ".")) (index + 1)
-                                |> \T2 a _ -> a
+                                        List.prepend r "."
 
-                            Break (T newGrid { i: i + 1, x, translatedX: sand.x + 1 })
+                            Break (T newGrid { i: i, x, translatedX: sand.x + 1, count: 0})
 
                         Err AbyssRight ->
                             newGrid =
@@ -84,7 +83,7 @@ dropSand = \grid, sand ->
                                     else
                                         List.append r "."
 
-                            Break (T newGrid { i: i + 1, x, translatedX })
+                            Break (T newGrid { i: i, x, translatedX, count: 0 })
 
                         Err Bottom ->
                             sandyRow : List Str
@@ -95,7 +94,7 @@ dropSand = \grid, sand ->
                                 |> List.append sandyRow
                                 |> List.concat (List.split grid (i + 1) |> .others)
 
-                            Break (T newGrid { i: i + 1, x, translatedX })
+                            Break (T newGrid { i: i + 1, x, translatedX, count: 1 })
 
                 _ ->
                     newGrid =
@@ -103,8 +102,8 @@ dropSand = \grid, sand ->
                         |> List.append row
                         |> List.concat (List.split grid (i + 1) |> .others)
 
-                    Break (T newGrid { i: i + 1, x, translatedX })
-    |> \T a { translatedX } -> { grid: a, x: translatedX }
+                    Break (T newGrid { i: i + 1, x, translatedX, count: 0 })
+    |> \T a { translatedX, count } -> { grid: a, x: translatedX, count }
 
 getNextSandX : List Str, Nat -> Result Nat [Bottom, AbyssLeft, AbyssRight]
 getNextSandX = \next, x ->
@@ -116,7 +115,7 @@ getNextSandX = \next, x ->
             else
                 [
                     getValidSandPos next (x - 1),
-                    if x >= List.len next then
+                    if x >= List.len next - 1 then
                         Err AbyssRight
                     else
                         getValidSandPos next (x + 1),
@@ -181,6 +180,7 @@ createGrid = \paths ->
 
     paths
     |> List.walk grid addPathToGrid
+    |> List.prepend (List.repeat "." (bounds.maxX - bounds.minX + 1))
 
 drawGrid : List (List Str) -> Str
 drawGrid = \grid -> grid
