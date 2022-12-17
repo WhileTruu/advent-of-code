@@ -17,18 +17,16 @@ main =
         |> Task.onFail \_ -> crash "Could not read file."
         |> Task.await
 
-    lineNum = 11
-    sensorsAndBeacons = parseInput exampleInput
+    lineNum = 10
+    sensorsAndBeacons = parseInput input
     bounds = calcBounds sensorsAndBeacons |> \a -> { a & minY: a.minY - 10, minX: a.minX - 10, maxX: a.maxX + 10, maxY: a.maxY + 10 }
 
-    x = calcShit sensorsAndBeacons 11 |> Num.toStr
+    x = calcShit sensorsAndBeacons 2000000 |> Num.toStr
 
-    baba = createGrid sensorsAndBeacons bounds |> drawGrid bounds
-
+    # baba = createGrid sensorsAndBeacons bounds |> drawGrid bounds
     Stdout.line
         """
         \(x)
-        \(baba)
         """
 
 calcShit : List { sensor : Pos, closestBeacon : Pos }, I64 -> I64
@@ -56,16 +54,10 @@ calcShit = \sensorsAndBeacons, lineNum ->
                     else
                         List.append state a
 
-    dbg
-        ranges
-
-    dbg
-        (sensorsAndBeacons |> List.keepOks \a -> sensorRangeForLine a lineNum)
-
     ranges
     |> List.map \a ->
         beaconCountInRange =
-            List.countIf beaconsOnLine (\bx -> bx >= a.min && bx < a.max)
+            List.countIf beaconsOnLine (\bx -> bx >= a.min && bx <= a.max)
 
         Num.abs (a.max - a.min) - Num.toI64 beaconCountInRange
     |> List.sum
@@ -83,7 +75,7 @@ sensorRangeForLine = \{ sensor, closestBeacon }, line ->
         min = sensor.x - distIntoLine
         max = sensor.x + distIntoLine
 
-        Ok { min, max: max }
+        Ok { min, max: max + 1 }
     else
         Err NoRangeForLine
 
@@ -95,9 +87,6 @@ createGrid = \sensorAndBeaconList, bounds ->
     grid : List (List Str)
     grid =
         List.repeat row (Num.toNat (bounds.maxY - bounds.minY + 1))
-
-    dbg
-        List.map sensorAndBeaconList \sb -> sensorRangeForLine sb (Num.toI64 30 + bounds.minY)
 
     grid
     |> List.mapWithIndex \a, y ->
@@ -114,7 +103,7 @@ createGrid = \sensorAndBeaconList, bounds ->
                 "+"
             else
                 b
-# ########################
+
 drawGrid : List (List Str), Bounds -> Str
 drawGrid = \grid, bounds ->
     spacing : Nat
