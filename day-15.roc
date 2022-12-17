@@ -21,7 +21,7 @@ main =
     sensorsAndBeacons = parseInput input
     bounds = calcBounds sensorsAndBeacons |> \a -> { a & minY: a.minY - 10, minX: a.minX - 10, maxX: a.maxX + 10, maxY: a.maxY + 10 }
 
-    x = calcShit sensorsAndBeacons 2000000 |> Num.toStr
+    x = howManyPositionsCanContainBeaconOnLine sensorsAndBeacons 2000000 |> Num.toStr
 
     # baba = createGrid sensorsAndBeacons bounds |> drawGrid bounds
     Stdout.line
@@ -29,8 +29,8 @@ main =
         \(x)
         """
 
-calcShit : List { sensor : Pos, closestBeacon : Pos }, I64 -> I64
-calcShit = \sensorsAndBeacons, lineNum ->
+howManyPositionsCanContainBeaconOnLine : List { sensor : Pos, closestBeacon : Pos }, I64 -> I64
+howManyPositionsCanContainBeaconOnLine = \sensorsAndBeacons, lineNum ->
     beaconsOnLine =
         sensorsAndBeacons
         |> List.keepIf \a -> a.closestBeacon.y == lineNum
@@ -254,6 +254,6 @@ expect
 
     parsePos input == expectedOutput
 
-expect calcShit (parseInput exampleInput) 10 == 26
-expect calcShit (parseInput exampleInput) 9 == 25
-expect calcShit (parseInput exampleInput) 11 == 28
+expect howManyPositionsCanContainBeaconOnLine (parseInput exampleInput) 10 == 26
+expect howManyPositionsCanContainBeaconOnLine (parseInput exampleInput) 9 == 25
+expect howManyPositionsCanContainBeaconOnLine (parseInput exampleInput) 11 == 28
