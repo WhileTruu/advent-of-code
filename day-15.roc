@@ -19,8 +19,20 @@ main =
 
     lineNum = 11
     sensorsAndBeacons = parseInput exampleInput
-    # bounds = calcBounds sensorsAndBeacons
-    # gridStr = sensorsAndBeacons |> createGrid bounds |> drawGrid bounds
+    bounds = calcBounds sensorsAndBeacons |> \a -> { a & minY: a.minY - 10, minX: a.minX - 10, maxX: a.maxX + 10, maxY: a.maxY + 10 }
+
+    x = calcShit sensorsAndBeacons 11 |> Num.toStr
+
+    baba = createGrid sensorsAndBeacons bounds |> drawGrid bounds
+
+    Stdout.line
+        """
+        \(x)
+        \(baba)
+        """
+
+calcShit : List { sensor : Pos, closestBeacon : Pos }, I64 -> I64
+calcShit = \sensorsAndBeacons, lineNum ->
     beaconsOnLine =
         sensorsAndBeacons
         |> List.keepIf \a -> a.closestBeacon.y == lineNum
@@ -29,9 +41,9 @@ main =
         |> Set.toList
         |> List.map .x
 
-    rangesWhereBeaconsCannotBe =
+    ranges =
         sensorsAndBeacons
-        |> List.map \a -> sensorRangeForLine a lineNum
+        |> List.keepOks \a -> sensorRangeForLine a lineNum
         |> Utils.List.bubbleSort \a, b -> Num.compare a.min b.min
         |> List.walk [] \state, a ->
             when state is
@@ -39,53 +51,41 @@ main =
                 [.., last] ->
                     if last.max >= a.max then
                         state
-                    else if a.min > last.max then
-                        List.append state a
+                    else if a.min < last.max then
+                        List.append state { a & min: last.max }
                     else
-                        List.append state { min: last.max, max: a.max }
+                        List.append state a
 
-    x =
-        rangesWhereBeaconsCannotBe
-        |> List.map \a ->
-            beaconCountInRange =
-                List.countIf beaconsOnLine (\bx -> bx >= a.min && bx < a.max)
+    dbg
+        ranges
 
-            Num.abs (a.max - a.min) - Num.toI64 beaconCountInRange
-        |> List.sum
-        |> Num.toStr
+    dbg
+        (sensorsAndBeacons |> List.keepOks \a -> sensorRangeForLine a lineNum)
 
-    Stdout.line
-        """
-        \(x)
-        """
+    ranges
+    |> List.map \a ->
+        beaconCountInRange =
+            List.countIf beaconsOnLine (\bx -> bx >= a.min && bx < a.max)
 
-rangeIntersect : { min : I64, max : I64 }, { min : I64, max : I64 } -> Result { min : I64, max : I64 } [NoIntersect]
-rangeIntersect = \visited, range ->
-    rangeMin = if range.min < visited.min then range else visited
-    rangeMax = if range.min < visited.min then visited else range
-
-    if rangeMin.max < rangeMax.min then
-        Err NoIntersect
-    else
-        Ok {
-            min: rangeMax.min,
-            max: if rangeMin.max < rangeMax.max then rangeMin.max else rangeMax.max,
-        }
+        Num.abs (a.max - a.min) - Num.toI64 beaconCountInRange
+    |> List.sum
 
 Pos : { x : I64, y : I64 }
 
-sensorRangeForLine : { sensor : Pos, closestBeacon : Pos }, I64 -> { min : I64, max : I64 }
+sensorRangeForLine : { sensor : Pos, closestBeacon : Pos }, I64 -> Result { min : I64, max : I64 } [NoRangeForLine]
 sensorRangeForLine = \{ sensor, closestBeacon }, line ->
     maxDistance = Num.abs (sensor.x - closestBeacon.x) + Num.abs (sensor.y - closestBeacon.y)
 
     lineSensorDist = Num.abs (sensor.y - line)
+    distIntoLine = maxDistance - lineSensorDist
 
-    distIntoLine = Num.abs (maxDistance - lineSensorDist)
+    if distIntoLine >= 0 then
+        min = sensor.x - distIntoLine
+        max = sensor.x + distIntoLine
 
-    min = sensor.x - distIntoLine
-    max = sensor.x + distIntoLine
-
-    { min, max: max + 1 }
+        Ok { min, max: max }
+    else
+        Err NoRangeForLine
 
 createGrid : List { sensor : Pos, closestBeacon : Pos }, Bounds -> List (List Str)
 createGrid = \sensorAndBeaconList, bounds ->
@@ -96,8 +96,13 @@ createGrid = \sensorAndBeaconList, bounds ->
     grid =
         List.repeat row (Num.toNat (bounds.maxY - bounds.minY + 1))
 
+    dbg
+        List.map sensorAndBeaconList \sb -> sensorRangeForLine sb (Num.toI64 30 + bounds.minY)
+
     grid
     |> List.mapWithIndex \a, y ->
+        sensorRanges = List.keepOks sensorAndBeaconList \sb -> sensorRangeForLine sb (Num.toI64 y + bounds.minY)
+
         List.mapWithIndex a \b, x ->
             pos = { x: bounds.minX + Num.toI64 x, y: bounds.minY + Num.toI64 y }
 
@@ -105,15 +110,19 @@ createGrid = \sensorAndBeaconList, bounds ->
                 "S"
             else if sensorAndBeaconList |> List.any \lv -> lv.closestBeacon == pos then
                 "B"
+            else if List.any sensorRanges \asd -> asd.min <= pos.x && pos.x <= asd.max then
+                "+"
             else
                 b
-
+# ########################
 drawGrid : List (List Str), Bounds -> Str
 drawGrid = \grid, bounds ->
     spacing : Nat
     spacing =
-        Str.countGraphemes (Num.toStr (bounds.minY + bounds.maxY))
-        |> \a -> if bounds.minY < 0 then a + 1 else a
+        a = Str.countGraphemes (Num.toStr bounds.maxY)
+        b = Str.countGraphemes (Num.toStr bounds.minY)
+
+        if a > b then a else b
 
     firstLineLen : Nat
     firstLineLen =
@@ -138,8 +147,10 @@ drawHorizontalIndices = \bounds, padAmount ->
 
     spacing : Nat
     spacing =
-        Str.countGraphemes (Num.toStr (bounds.minX + bounds.maxX))
-        |> \a -> if bounds.minX < 0 then a + 1 else a
+        a = Str.countGraphemes (Num.toStr bounds.maxX)
+        b = Str.countGraphemes (Num.toStr bounds.minX)
+
+        if a > b then a else b
 
     lines =
         indices
@@ -148,7 +159,7 @@ drawHorizontalIndices = \bounds, padAmount ->
 
             indexStr
             |> Str.graphemes
-            |> \elems -> List.concat (List.repeat " " (spacing - Str.countGraphemes indexStr - 1)) elems
+            |> \elems -> List.concat (List.repeat " " (spacing - Str.countGraphemes indexStr)) elems
         |> List.walk Dict.empty \state, a ->
             List.walk a (T state 0) \T dictState i, str ->
                 newState =
@@ -161,7 +172,7 @@ drawHorizontalIndices = \bounds, padAmount ->
             |> \T newState _ -> newState
         |> Dict.toList
         |> List.map \T _ a ->
-            List.mapWithIndex a \v, i -> if (Num.toI64 i - bounds.minX + 1) % 5 == 0 then v else " "
+            List.mapWithIndex a \v, i -> if (Num.toI64 i - bounds.minX) % 5 == 0 then v else " "
             |> Str.joinWith ""
         |> List.map \a -> Utils.Str.padLeft a padAmount " "
         |> Str.joinWith "\n"
@@ -253,3 +264,7 @@ expect
     expectedOutput = { x: 2, y: 18 }
 
     parsePos input == expectedOutput
+
+expect calcShit (parseInput exampleInput) 10 == 26
+expect calcShit (parseInput exampleInput) 9 == 25
+expect calcShit (parseInput exampleInput) 11 == 28
