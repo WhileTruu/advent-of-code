@@ -17,19 +17,57 @@ main =
         |> Task.onFail \_ -> crash "Could not read file."
         |> Task.await
 
-    lineNum = 10
-    sensorsAndBeacons = parseInput exampleInput
-    bounds = calcBounds sensorsAndBeacons |> \a -> { a & minY: a.minY - 10, minX: a.minX - 10, maxX: a.maxX + 10, maxY: a.maxY + 10 }
+    # lineNum = 10
+    sensorsAndBeacons = parseInput input
 
-    x = howManyPositionsCanContainBeaconOnLine sensorsAndBeacons lineNum |> Num.toStr
+    # x = howManyPositionsCanContainBeaconOnLine sensorsAndBeacons lineNum |> Num.toStr
 
-    baba = createGrid sensorsAndBeacons bounds |> drawGrid bounds
+    emptySpot = findEmptySpot sensorsAndBeacons 4000000
+        |> Utils.Result.withDefaultLazy \_ -> crash "No empty spot."
+        |> \a -> a.x * 4000000 + a.y
+        |> Num.toStr
 
     Stdout.line
         """
-        \(x)
-        \(baba)
+        \(emptySpot)
         """
+
+findEmptySpot : List { sensor : Pos, closestBeacon : Pos }, Nat -> Result Pos [NoEmptySpot]
+findEmptySpot = \sensorsAndBeacons, max ->
+    findEmptySpotHelp sensorsAndBeacons 0 max
+
+findEmptySpotHelp : List { sensor : Pos, closestBeacon : Pos }, Nat, Nat -> Result Pos [NoEmptySpot]
+findEmptySpotHelp = \sensorsAndBeacons, lineNum, max ->
+    if lineNum < max then
+        res =
+            sensorsAndBeacons
+            |> List.keepOks \a -> sensorRangeForLine a (Num.toI64 lineNum)
+            |> Utils.List.bubbleSort \a, b -> Num.compare a.min b.min
+            |> List.walk [] \state, a ->
+                when state is
+                    [] -> [a]
+                    [.., last] ->
+                        if last.max >= a.max then
+                            state
+                        else if a.min < last.max then
+                            List.append state { a & min: last.max }
+                        else
+                            List.append state a
+            |> List.walkUntil (Err []) \r, a ->
+                when r is
+                    Err ([]) -> Continue (Err [a])
+                    Err ([.., last]) ->
+                        if a.min > last.max then
+                            Break (Ok { x: last.max, y: Num.toI64 lineNum })
+                        else
+                            Continue (Result.mapErr r \state -> List.append state a)
+                    Ok x -> Break (Ok x)
+
+        when res is
+            Ok a -> Ok a
+            Err a -> findEmptySpotHelp sensorsAndBeacons (lineNum + 1) max
+    else
+        Err NoEmptySpot
 
 howManyPositionsCanContainBeaconOnLine : List { sensor : Pos, closestBeacon : Pos }, I64 -> I64
 howManyPositionsCanContainBeaconOnLine = \sensorsAndBeacons, lineNum ->
