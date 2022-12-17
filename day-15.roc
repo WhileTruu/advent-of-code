@@ -18,15 +18,17 @@ main =
         |> Task.await
 
     lineNum = 10
-    sensorsAndBeacons = parseInput input
+    sensorsAndBeacons = parseInput exampleInput
     bounds = calcBounds sensorsAndBeacons |> \a -> { a & minY: a.minY - 10, minX: a.minX - 10, maxX: a.maxX + 10, maxY: a.maxY + 10 }
 
-    x = howManyPositionsCanContainBeaconOnLine sensorsAndBeacons 2000000 |> Num.toStr
+    x = howManyPositionsCanContainBeaconOnLine sensorsAndBeacons lineNum |> Num.toStr
 
-    # baba = createGrid sensorsAndBeacons bounds |> drawGrid bounds
+    baba = createGrid sensorsAndBeacons bounds |> drawGrid bounds
+
     Stdout.line
         """
         \(x)
+        \(baba)
         """
 
 howManyPositionsCanContainBeaconOnLine : List { sensor : Pos, closestBeacon : Pos }, I64 -> I64
@@ -99,7 +101,7 @@ createGrid = \sensorAndBeaconList, bounds ->
                 "S"
             else if sensorAndBeaconList |> List.any \lv -> lv.closestBeacon == pos then
                 "B"
-            else if List.any sensorRanges \asd -> asd.min <= pos.x && pos.x <= asd.max then
+            else if List.any sensorRanges \asd -> asd.min <= pos.x && pos.x < asd.max then
                 "+"
             else
                 b
@@ -112,10 +114,6 @@ drawGrid = \grid, bounds ->
         b = Str.countGraphemes (Num.toStr bounds.minY)
 
         if a > b then a else b
-
-    firstLineLen : Nat
-    firstLineLen =
-        grid |> List.first |> Result.map List.len |> Result.withDefault 0
 
     grid
     |> List.mapWithIndex \a, i ->
