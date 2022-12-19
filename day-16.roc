@@ -6,6 +6,7 @@ app "day-16"
         pf.Task.{ await, Task },
         pf.Path.{ Path },
         Utils.Result,
+        Utils.List,
     ]
     provides [main] to pf
 
@@ -14,17 +15,94 @@ main =
     input <- File.readUtf8 (Path.fromStr "day-16-input.txt")
         |> Task.onFail \_ -> crash "Could not read file."
         |> Task.await
+
     xample =
-        Dict.toList (parseScanOutput exampleInput)
+        Dict.toList scanOutput
         |> List.map \T a _ -> a
         |> Str.joinWith ", "
+
+    scanOutput = parseScanOutput exampleInput
+
+    mostPressureRelieved = findMostPressureRelieved scanOutput |> Num.toStr
 
     Stdout.line
         """
 
         \(xample)
+        \(mostPressureRelieved)
         
         """
+
+findMostPressureRelieved : Dict Str { flowRate : Nat, tunnels : Set Str } -> Nat
+findMostPressureRelieved = \scanOutput ->
+    findMostPressureRelievedHelp
+        scanOutput
+        [
+            {
+                key: "AA",
+                opened: Set.empty,
+                flowsSum: 0,
+                lastFlow: 0,
+                minute: 1,
+            },
+        ]
+        0
+
+findMostPressureRelievedHelp :
+    Dict Str { flowRate : Nat, tunnels : Set Str },
+    List { key : Str, opened : Set Str, flowsSum : Nat, lastFlow : Nat, minute : Nat },
+    Nat
+    -> Nat
+findMostPressureRelievedHelp = \scanOutput, queue, bestSum ->
+    when queue is
+        [] -> bestSum
+        [.., { key, opened, flowsSum, lastFlow, minute }] ->
+            rest = List.dropLast queue
+
+            if minute > 16 then
+                findMostPressureRelievedHelp scanOutput rest (if flowsSum > bestSum then flowsSum else bestSum)
+            else
+                { flowRate, tunnels } =
+                    Dict.get scanOutput key
+                    |> Utils.Result.withDefaultLazy \_ -> crash "Could not get room from dict."
+
+                unvisitedA : List { key : Str, opened : Set Str, flowsSum : Nat, lastFlow : Nat, minute : Nat }
+                unvisitedA =
+                    if Set.contains opened key then
+                        []
+                    else
+                        List.map (Set.toList tunnels) \a -> {
+                            key: a,
+                            opened: Set.insert opened key,
+                            flowsSum: flowsSum + lastFlow + flowRate,
+                            lastFlow: lastFlow + flowRate,
+                            minute: minute + 2,
+                        }
+
+                prev : Str
+                prev = opened |> Set.toList |> List.last |> Result.withDefault ""
+
+                unvisitedB : List { key : Str, opened : Set Str, flowsSum : Nat, lastFlow : Nat, minute : Nat }
+                unvisitedB =
+                    Set.toList tunnels
+                    |> List.dropIf \a -> a == prev
+                    |> List.map \a -> {
+                        key: a,
+                        opened,
+                        flowsSum: flowsSum + lastFlow,
+                        lastFlow,
+                        minute: minute + 1,
+                    }
+
+                newQueue =
+                    rest
+                    |> List.concat unvisitedA
+                    |> List.concat unvisitedB
+
+                findMostPressureRelievedHelp
+                    scanOutput
+                    newQueue
+                    bestSum
 
 parseScanOutput : Str -> Dict Str { flowRate : Nat, tunnels : Set Str }
 parseScanOutput = \input ->
