@@ -47,27 +47,38 @@ findMostPressureRelieved :
     -> { valves : List Str, score : Nat }
 findMostPressureRelieved = \scanOutput, key, candidates, timeLeft ->
     List.walk candidates { valves: [], score: 0 } \state, candidate ->
-        newCandidates = List.dropIf candidates \a -> a == candidate
+        walkHelp scanOutput key candidates timeLeft state candidate
 
-        newTime = timeLeft - Num.toI64 (distanceTo scanOutput key candidate) - 1
+walkHelp :
+    Dict Str { flowRate : Nat, tunnels : Set Str },
+    Str,
+    List Str,
+    I64,
+    { valves : List Str, score : Nat },
+    Str
+    -> { valves : List Str, score : Nat }
+walkHelp = \scanOutput, key, candidates, timeLeft, state, candidate ->
+    newCandidates = List.dropIf candidates \a -> a == candidate
 
-        if newTime <= 0 then
-            state
+    newTime = timeLeft - Num.toI64 (distanceTo scanOutput key candidate) - 1
+
+    if newTime <= 0 then
+        state
+    else
+        candidateScore =
+            Dict.get scanOutput candidate
+            |> Result.map .flowRate
+            |> Result.withDefault 0
+            |> \a -> a * Num.toNat newTime
+
+        optimal = findMostPressureRelieved scanOutput candidate newCandidates newTime
+
+        score = candidateScore + optimal.score
+
+        if score > state.score then
+            { valves: List.prepend optimal.valves candidate, score: score }
         else
-            candidateScore =
-                Dict.get scanOutput candidate
-                |> Result.map .flowRate
-                |> Result.withDefault 0
-                |> \a -> a * Num.toNat newTime
-
-            optimal = findMostPressureRelieved scanOutput candidate newCandidates newTime
-
-            score = candidateScore + optimal.score
-
-            if score > state.score then
-                { valves: List.prepend optimal.valves candidate, score: score }
-            else
-                state
+            state
 
 distanceTo : Dict Str { flowRate : Nat, tunnels : Set Str }, Str, Str -> Nat
 distanceTo = \scanOutput, currentValve, targetValve ->
