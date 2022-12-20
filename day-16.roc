@@ -27,15 +27,14 @@ main =
 
     x =
         mostPressureRelieved.score |> Num.toStr
-
-    dbg
-        mostPressureRelieved.valves
+    y = mostPressureRelieved.valves |> Str.joinWith ", "
 
     Stdout.line
         """
 
         \(xample)
         \(x)
+        \(y)
         
         """
 
@@ -46,8 +45,43 @@ findMostPressureRelieved :
     I64
     -> { valves : List Str, score : Nat }
 findMostPressureRelieved = \scanOutput, key, candidates, timeLeft ->
-    List.walk candidates { valves: [], score: 0 } \state, candidate ->
-        walkHelp scanOutput key candidates timeLeft state candidate
+    findPressureRelievedHelp candidates { valves: [], score: 0 } scanOutput key candidates timeLeft
+
+findPressureRelievedHelp :
+    List Str,
+    { valves : List Str, score : Nat },
+    Dict Str { flowRate : Nat, tunnels : Set Str },
+    Str,
+    List Str,
+    I64
+    -> { valves : List Str, score : Nat }
+findPressureRelievedHelp = \unvisited, state, scanOutput, key, candidates, timeLeft ->
+    when unvisited is
+        [] -> state
+        [candidate, ..] ->
+            otherUnvisited = List.dropFirst unvisited
+
+            newCandidates = List.dropIf candidates \a -> a == candidate
+
+            newTime = timeLeft - Num.toI64 (distanceTo scanOutput key candidate) - 1
+
+            if newTime <= 0 then
+                findPressureRelievedHelp otherUnvisited state scanOutput key candidates timeLeft
+            else
+                candidateScore =
+                    Dict.get scanOutput candidate
+                    |> Result.map .flowRate
+                    |> Result.withDefault 0
+                    |> \x -> x * Num.toNat newTime
+
+                optimal = findMostPressureRelieved scanOutput candidate newCandidates newTime
+
+                score = candidateScore + optimal.score
+
+                if score > state.score then
+                    findPressureRelievedHelp otherUnvisited { valves: List.append optimal.valves candidate, score: score } scanOutput key candidates timeLeft
+                else
+                    findPressureRelievedHelp otherUnvisited state scanOutput key candidates timeLeft
 
 walkHelp :
     Dict Str { flowRate : Nat, tunnels : Set Str },
