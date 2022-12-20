@@ -23,86 +23,84 @@ main =
 
     scanOutput = parseScanOutput exampleInput
 
-    mostPressureRelieved = findMostPressureRelieved scanOutput |> Num.toStr
+    mostPressureRelieved = findMostPressureRelieved scanOutput "AA" (Dict.keys scanOutput |> List.dropIf \a -> a == "AA") 30
+
+    x =
+        mostPressureRelieved.score |> Num.toStr
+
+    dbg
+        mostPressureRelieved.valves
 
     Stdout.line
         """
 
         \(xample)
-        \(mostPressureRelieved)
+        \(x)
         
         """
 
-findMostPressureRelieved : Dict Str { flowRate : Nat, tunnels : Set Str } -> Nat
-findMostPressureRelieved = \scanOutput ->
-    findMostPressureRelievedHelp
-        scanOutput
-        [
-            {
-                key: "AA",
-                opened: Set.empty,
-                flowsSum: 0,
-                lastFlow: 0,
-                minute: 1,
-            },
-        ]
-        0
-
-findMostPressureRelievedHelp :
+findMostPressureRelieved :
     Dict Str { flowRate : Nat, tunnels : Set Str },
-    List { key : Str, opened : Set Str, flowsSum : Nat, lastFlow : Nat, minute : Nat },
-    Nat
-    -> Nat
-findMostPressureRelievedHelp = \scanOutput, queue, bestSum ->
-    when queue is
-        [] -> bestSum
-        [.., { key, opened, flowsSum, lastFlow, minute }] ->
-            rest = List.dropLast queue
+    Str,
+    List Str,
+    I64
+    -> { valves : List Str, score : Nat }
+findMostPressureRelieved = \scanOutput, key, candidates, timeLeft ->
+    List.walk candidates { valves: [], score: 0 } \state, candidate ->
+        newCandidates = List.dropIf candidates \a -> a == candidate
 
-            if minute > 16 then
-                findMostPressureRelievedHelp scanOutput rest (if flowsSum > bestSum then flowsSum else bestSum)
+        newTime = timeLeft - Num.toI64 (distanceTo scanOutput key candidate) - 1
+
+        if newTime <= 0 then
+            state
+        else
+            candidateScore =
+                Dict.get scanOutput candidate
+                |> Result.map .flowRate
+                |> Result.withDefault 0
+                |> \a -> a * Num.toNat newTime
+
+            optimal = findMostPressureRelieved scanOutput candidate newCandidates newTime
+
+            score = candidateScore + optimal.score
+
+            if score > state.score then
+                { valves: List.prepend optimal.valves candidate, score: score }
+            else
+                state
+
+distanceTo : Dict Str { flowRate : Nat, tunnels : Set Str }, Str, Str -> Nat
+distanceTo = \scanOutput, currentValve, targetValve ->
+    distanceToHelp scanOutput targetValve [T currentValve 0] Set.empty
+
+distanceToHelp : Dict Str { flowRate : Nat, tunnels : Set Str }, Str, List [T Str Nat], Set Str -> Nat
+distanceToHelp = \scanOutput, targetValve, queue, explored ->
+    when queue is
+        [] -> crash "no path found \(targetValve)"
+        [T currentValve distance, ..] ->
+            rest = List.dropFirst queue
+
+            if currentValve == targetValve then
+                distance
             else
                 { flowRate, tunnels } =
-                    Dict.get scanOutput key
+                    Dict.get scanOutput currentValve
                     |> Utils.Result.withDefaultLazy \_ -> crash "Could not get room from dict."
 
-                unvisitedA : List { key : Str, opened : Set Str, flowsSum : Nat, lastFlow : Nat, minute : Nat }
-                unvisitedA =
-                    if Set.contains opened key then
-                        []
-                    else
-                        List.map (Set.toList tunnels) \a -> {
-                            key: a,
-                            opened: Set.insert opened key,
-                            flowsSum: flowsSum + lastFlow + flowRate,
-                            lastFlow: lastFlow + flowRate,
-                            minute: minute + 2,
-                        }
+                unexplored : Set Str
+                unexplored =
+                    Set.difference tunnels explored
 
-                prev : Str
-                prev = opened |> Set.toList |> List.last |> Result.withDefault ""
-
-                unvisitedB : List { key : Str, opened : Set Str, flowsSum : Nat, lastFlow : Nat, minute : Nat }
-                unvisitedB =
-                    Set.toList tunnels
-                    |> List.dropIf \a -> a == prev
-                    |> List.map \a -> {
-                        key: a,
-                        opened,
-                        flowsSum: flowsSum + lastFlow,
-                        lastFlow,
-                        minute: minute + 1,
-                    }
-
+                newQueue : List [T Str Nat]
                 newQueue =
                     rest
-                    |> List.concat unvisitedA
-                    |> List.concat unvisitedB
+                    |> List.concat (Set.toList unexplored |> List.map \a -> T a (distance + 1))
 
-                findMostPressureRelievedHelp
-                    scanOutput
-                    newQueue
-                    bestSum
+                newExplored : Set Str
+                newExplored =
+                    Set.union explored unexplored
+
+                distanceToHelp scanOutput targetValve newQueue newExplored
 
 parseScanOutput : Str -> Dict Str { flowRate : Nat, tunnels : Set Str }
 parseScanOutput = \input ->
