@@ -21,9 +21,9 @@ main =
         |> List.map \T a _ -> a
         |> Str.joinWith ", "
 
-    scanOutput = parseScanOutput exampleInput
+    scanOutput = parseScanOutput input
 
-    mostPressureRelieved = findMostPressureRelieved scanOutput "AA" 30 |> Num.toStr
+    mostPressureRelieved = findMostPressureRelieved scanOutput "AA" 8 |> Num.toStr
 
     Stdout.line
         """
@@ -35,34 +35,36 @@ main =
 
 findMostPressureRelieved : Dict Str { flowRate : Nat, tunnels : Set Str }, Str, I64 -> Nat
 findMostPressureRelieved = \scanOutput, start, timeLeft ->
-    findMostPressureRelievedHelp scanOutput [T start 0 timeLeft (Set.single start)] 0
+    unexplored = Dict.keys scanOutput |> List.dropIf (\a -> a == start) |> Set.fromList
+
+    findMostPressureRelievedHelp scanOutput [T start 0 timeLeft unexplored] 0
 
 findMostPressureRelievedHelp : Dict Str { flowRate : Nat, tunnels : Set Str }, List [T Str Nat I64 (Set Str)], Nat -> Nat
 findMostPressureRelievedHelp = \scanOutput, stack, best ->
     when stack is
         [] -> best
-        [.., T last score timeLeft explored] ->
+        [.., T last score timeLeft unexplored] ->
+            rest : List [T Str Nat I64 (Set Str)]
             rest = List.dropLast stack
 
             if timeLeft <= 0 then
                 findMostPressureRelievedHelp scanOutput rest (if score > best then score else best)
             else
+                candidateScore : Nat
                 candidateScore =
                     Dict.get scanOutput last
                     |> Result.map .flowRate
                     |> Result.withDefault 0
-                    |> \a -> a * Num.toNat timeLeft
+                    |> \a -> a * Num.toNat timeLeft + score
 
-                unexplored =
-                    Dict.keys scanOutput
-                    |> List.dropIf \a -> a == last
-                    |> Set.fromList
-                    |> \a -> Set.difference a explored
-
+                newStack : List [T Str Nat I64 (Set Str)]
                 newStack =
                     unexplored
                     |> Set.toList
-                    |> List.map \a -> T a (score + candidateScore) (timeLeft - Num.toI64 (distanceTo scanOutput last a) - 1) (Set.insert explored a)
+                    |> List.map \a ->
+                        time = timeLeft - Num.toI64 (distanceTo scanOutput last a) - 1
+
+                        T a candidateScore time (Set.remove unexplored a)
                     |> \a -> List.concat rest a
 
                 findMostPressureRelievedHelp scanOutput newStack best
