@@ -23,96 +23,49 @@ main =
 
     scanOutput = parseScanOutput exampleInput
 
-    mostPressureRelieved = findMostPressureRelieved scanOutput "AA" (Dict.keys scanOutput |> List.dropIf \a -> a == "AA") 30
-
-    x =
-        mostPressureRelieved.score |> Num.toStr
-    y = mostPressureRelieved.valves |> Str.joinWith ", "
+    mostPressureRelieved = findMostPressureRelieved scanOutput "AA" 30 |> Num.toStr
 
     Stdout.line
         """
 
         \(xample)
-        \(x)
-        \(y)
+        \(mostPressureRelieved)
         
         """
 
-findMostPressureRelieved :
-    Dict Str { flowRate : Nat, tunnels : Set Str },
-    Str,
-    List Str,
-    I64
-    -> { valves : List Str, score : Nat }
-findMostPressureRelieved = \scanOutput, key, candidates, timeLeft ->
-    findPressureRelievedHelp candidates { valves: [], score: 0 } scanOutput key candidates timeLeft
+findMostPressureRelieved : Dict Str { flowRate : Nat, tunnels : Set Str }, Str, I64 -> Nat
+findMostPressureRelieved = \scanOutput, start, timeLeft ->
+    findMostPressureRelievedHelp scanOutput [T start 0 timeLeft (Set.single start)] 0
 
-findPressureRelievedHelp :
-    List Str,
-    { valves : List Str, score : Nat },
-    Dict Str { flowRate : Nat, tunnels : Set Str },
-    Str,
-    List Str,
-    I64
-    -> { valves : List Str, score : Nat }
-findPressureRelievedHelp = \unvisited, state, scanOutput, key, candidates, timeLeft ->
-    when unvisited is
-        [] -> state
-        [candidate, ..] ->
-            otherUnvisited = List.dropFirst unvisited
+findMostPressureRelievedHelp : Dict Str { flowRate : Nat, tunnels : Set Str }, List [T Str Nat I64 (Set Str)], Nat -> Nat
+findMostPressureRelievedHelp = \scanOutput, stack, best ->
+    when stack is
+        [] -> best
+        [.., T last score timeLeft explored] ->
+            rest = List.dropLast stack
 
-            newCandidates = List.dropIf candidates \a -> a == candidate
-
-            newTime = timeLeft - Num.toI64 (distanceTo scanOutput key candidate) - 1
-
-            if newTime <= 0 then
-                findPressureRelievedHelp otherUnvisited state scanOutput key candidates timeLeft
+            if timeLeft <= 0 then
+                findMostPressureRelievedHelp scanOutput rest (if score > best then score else best)
             else
                 candidateScore =
-                    Dict.get scanOutput candidate
+                    Dict.get scanOutput last
                     |> Result.map .flowRate
                     |> Result.withDefault 0
-                    |> \x -> x * Num.toNat newTime
+                    |> \a -> a * Num.toNat timeLeft
 
-                optimal = findMostPressureRelieved scanOutput candidate newCandidates newTime
+                unexplored =
+                    Dict.keys scanOutput
+                    |> List.dropIf \a -> a == last
+                    |> Set.fromList
+                    |> \a -> Set.difference a explored
 
-                score = candidateScore + optimal.score
+                newStack =
+                    unexplored
+                    |> Set.toList
+                    |> List.map \a -> T a (score + candidateScore) (timeLeft - Num.toI64 (distanceTo scanOutput last a) - 1) (Set.insert explored a)
+                    |> \a -> List.concat rest a
 
-                if score > state.score then
-                    findPressureRelievedHelp otherUnvisited { valves: List.append optimal.valves candidate, score: score } scanOutput key candidates timeLeft
-                else
-                    findPressureRelievedHelp otherUnvisited state scanOutput key candidates timeLeft
-
-walkHelp :
-    Dict Str { flowRate : Nat, tunnels : Set Str },
-    Str,
-    List Str,
-    I64,
-    { valves : List Str, score : Nat },
-    Str
-    -> { valves : List Str, score : Nat }
-walkHelp = \scanOutput, key, candidates, timeLeft, state, candidate ->
-    newCandidates = List.dropIf candidates \a -> a == candidate
-
-    newTime = timeLeft - Num.toI64 (distanceTo scanOutput key candidate) - 1
-
-    if newTime <= 0 then
-        state
-    else
-        candidateScore =
-            Dict.get scanOutput candidate
-            |> Result.map .flowRate
-            |> Result.withDefault 0
-            |> \a -> a * Num.toNat newTime
-
-        optimal = findMostPressureRelieved scanOutput candidate newCandidates newTime
-
-        score = candidateScore + optimal.score
-
-        if score > state.score then
-            { valves: List.prepend optimal.valves candidate, score: score }
-        else
-            state
+                findMostPressureRelievedHelp scanOutput newStack best
 
 distanceTo : Dict Str { flowRate : Nat, tunnels : Set Str }, Str, Str -> Nat
 distanceTo = \scanOutput, currentValve, targetValve ->
